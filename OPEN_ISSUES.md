@@ -12,7 +12,36 @@ discovered after seeing an inconvenient number.
 
 ---
 
-## OI-1 — Ganglia's irregular sampling confounds predictability with instrumentation `BLOCKING`
+## OI-1 — Ganglia's irregular sampling confounds predictability with instrumentation `IMPORTANT`
+
+> **Downgraded from BLOCKING.** The measurement problem underneath it is resolved: sampling
+> irregularity has been separated into two dissociated phenomena and both are now covariates. What
+> remains open is the *conditioning test* — whether Ganglia's family effect survives once they are
+> controlled for — which cannot be run until the forecast sweep finishes.
+
+**Resolved: "irregular sampling" was two different things.** Measured across all 159,506 series:
+
+| plugin | series with jitter > 0.01 | series with a gap > 100× median |
+|---|---:|---:|
+| IPMI | **0.0%** | **100%** |
+| Ganglia | **81.0%** | 74.9% |
+| Logics | 40.8% | 30.5% |
+| SLURM | 10.5% | 91.5% |
+| Schneider | 0.0% | 52.6% |
+| Vertiv | 0.0% | 61.1% |
+| Nagios | 0.0% | 18.1% |
+| Weather | 0.0% | 11.1% |
+
+The two are almost orthogonal. IPMI samples with a *perfectly* regular typical interval and is
+*universally* interrupted — every single IPMI series contains a gap more than a hundred times its
+median interval. Ganglia is the only plugin with substantial jitter in the interval itself, which
+is precisely what the ExaData documentation warns about and what the combined measure denied.
+
+This is why the original `dt_cv` ranked IPMI as the least regular plugin: its rare enormous gaps
+(gap fraction 0.001, but each gap thousands of times the median) dominated the coefficient of
+variation entirely, giving `dt_cv` = 12.7 for a signal whose sampling is otherwise exact.
+
+
 
 **Why it matters.** The central claim is that predictability differs by *signal physics*. Ganglia
 is the plugin with the most diverse physics (CPU, memory, network, GPU/DCGM), and it is also the

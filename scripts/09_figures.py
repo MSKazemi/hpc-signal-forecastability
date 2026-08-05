@@ -117,43 +117,56 @@ def fig_constant_share(manifest: pd.DataFrame, out: Path) -> None:
 
 
 def fig_sampling_irregularity(manifest: pd.DataFrame, out: Path) -> None:
-    """Distribution of inter-sample interval variability, by plugin.
+    """Jitter and outages are two different failures of regularity.
 
-    Job: compare distributions -> box plots on a log axis, because the values
-    span orders of magnitude. This figure is the evidence for OI-1.
+    Job: compare two magnitudes across categories, where the POINT is that they
+    disagree -> paired horizontal bars, both directly labelled.
 
-    Plots dt_jitter, the interquartile spread of the interval relative to its
-    median, NOT dt_cv. dt_cv is computed over every interval and a single
-    multi-day outage inflates it enormously, which made IPMI look like the
-    least regular plugin — the opposite of what the dataset documentation
-    reports. Outages are a real problem but a different one, and they are
-    counted separately as gap_frac.
+    An earlier version plotted a single combined measure, dt_cv, and reported
+    IPMI as the least regular plugin — contradicting the ExaData documentation,
+    which singles out Ganglia. dt_cv is computed over every interval, so IPMI's
+    rare but enormous outages dominated it entirely. Splitting the measure shows
+    the two phenomena are nearly orthogonal: IPMI's typical interval is exact
+    and every one of its series is interrupted, while Ganglia is the only
+    plugin whose interval genuinely wanders. This figure is the evidence for
+    OI-1.
     """
-    usable = manifest[manifest.dt_jitter.notna() & (manifest.dt_jitter > 0)]
-    order = [p for p in PLUGIN_ORDER if p in set(usable.plugin)]
-    data = [usable.loc[usable.plugin == p, "dt_jitter"].to_numpy() for p in order]
+    usable = manifest.dropna(subset=["dt_jitter", "dt_median_s", "dt_max_s"]).copy()
+    usable = usable[usable.dt_median_s > 0]
+    usable["has_jitter"] = usable.dt_jitter > 0.01
+    usable["has_gap"] = (usable.dt_max_s / usable.dt_median_s) > 100
 
-    fig, ax = plt.subplots(figsize=(6.0, 2.9))
-    box = ax.boxplot(
-        data, orientation="horizontal", tick_labels=order, widths=0.6,
-        showfliers=False, patch_artist=True
+    stats = (
+        usable.groupby("plugin")[["has_jitter", "has_gap"]].mean().mul(100)
+        .reindex([p for p in PLUGIN_ORDER if p in set(usable.plugin)])
+        .dropna()
+        .sort_values("has_jitter")
     )
-    for patch, plugin in zip(box["boxes"], order, strict=True):
-        patch.set_facecolor(plugin_colour(plugin))
-        patch.set_alpha(0.85)
-        patch.set_edgecolor("none")
-    for element in ("medians", "whiskers", "caps"):
-        for artist in box[element]:
-            artist.set_color(INK_PRIMARY)
-            artist.set_linewidth(1.0)
 
-    ax.set_xscale("log")
-    ax.axvline(0.1, color=INK_MUTED, linestyle="--", linewidth=0.9)
-    ax.text(0.105, len(order) + 0.35, "regular", fontsize=7.5, color=INK_MUTED)
-    ax.set_xlabel("interval jitter: (p75 - p25) / median   (log scale)")
+    fig, ax = plt.subplots(figsize=(6.2, 3.2))
+    y = np.arange(len(stats))
+    height = 0.38
+    ax.barh(y + height / 2, stats.has_jitter, height=height,
+            color=CATEGORICAL[0], label="interval jitter  (IQR/median > 0.01)")
+    ax.barh(y - height / 2, stats.has_gap, height=height,
+            color=CATEGORICAL[1], label="outage  (largest gap > 100x median)")
+
+    for i, (jitter, gap) in enumerate(zip(stats.has_jitter, stats.has_gap, strict=True)):
+        ax.text(jitter + 1.5, i + height / 2, f"{jitter:.0f}%",
+                va="center", fontsize=7.5, color=INK_PRIMARY)
+        ax.text(gap + 1.5, i - height / 2, f"{gap:.0f}%",
+                va="center", fontsize=7.5, color=INK_PRIMARY)
+
+    ax.set_yticks(y, stats.index)
+    ax.set_xlim(0, 112)
+    ax.set_xlabel("share of series affected (%)")
     ax.grid(axis="y", visible=False)
+    # Below the axes: IPMI's outage bar reaches 100% and any in-plot legend
+    # collides with it and with its value label.
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2)
     ax.set_title(
-        "Sampling regularity differs by orders of magnitude", loc="left", color=INK_PRIMARY
+        "Regular sampling and uninterrupted sampling are different properties",
+        loc="left", color=INK_PRIMARY,
     )
     save(fig, out)
 
