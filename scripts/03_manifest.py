@@ -32,6 +32,10 @@ from hsf.io.schema import entity_columns, is_timeseries_plugin  # noqa: E402
 
 SHARD_DIR = paths.INTERIM / "_census"
 
+# Measured, not estimated: the 233,715,011-row Gpu1_memory_temp partition peaked
+# at 15.3 GiB resident. Used to derive safe concurrency from a memory budget.
+PEAK_BYTES_PER_ROW = 70
+
 
 def parse_partition_path(path: Path) -> tuple[str, str, str]:
     """``.../year_month=21-08/plugin=ipmi_pub/metric=ambient/a_0.parquet``."""
@@ -82,10 +86,10 @@ def main() -> None:
     # Worker count is set by memory, not by core count.
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument(
-        "--big-bytes",
-        type=int,
-        default=60 * 1024**2,
-        help="partitions at or above this size are processed one at a time",
+        "--memory-budget-gb",
+        type=float,
+        default=24.0,
+        help="total resident memory the pool may use; concurrency is derived from it",
     )
     ap.add_argument("--plugins", nargs="*", default=None, help="restrict to these plugin families")
     args = ap.parse_args()
@@ -108,14 +112,41 @@ def main() -> None:
     done = errors = cached = 0
 
     # This machine also hosts Kubernetes workloads, and an earlier attempt was
-    # OOM-killed and took an unrelated pod down with it. Partitions are
-    # therefore split by size: the large ones are processed one at a time, and
-    # only the small ones run in parallel.
-    big = sorted((p for p in todo if Path(p).stat().st_size >= args.big_bytes), reverse=True)
-    small = [p for p in todo if Path(p).stat().st_size < args.big_bytes]
+    # OOM-killed and took an unrelated pod down with it. Concurrency is
+    # therefore derived from a memory budget rather than fixed.
+    #
+    # Size is measured in ROWS, read from the parquet footer, not in bytes.
+    # Bytes are a bad proxy: a low-cardinality integer column such as
+    # Gpu0_gpu_temp compresses far harder than a high-entropy float counter, so
+    # a 435 MiB file held 234M rows while a 364 MiB file held only 90M — byte
+    # size put the heaviest partition in the wrong bucket entirely.
+    #
+    # PEAK_BYTES_PER_ROW is measured, not guessed: the 233.7M-row
+    # Gpu1_memory_temp partition peaked at 15.3 GiB, i.e. ~70 B/row.
+    rows_by_path = {p: pq.read_metadata(p).num_rows for p in todo}
+
+    # Descending, so the heaviest partitions are handled while the pool is
+    # otherwise empty and a straggler never runs alone at the end.
+    ordered = sorted(todo, key=lambda p: rows_by_path[p], reverse=True)
+
+    def workers_for(rows: int) -> int:
+        peak_gb = rows * PEAK_BYTES_PER_ROW / 1024**3
+        if peak_gb <= 0:
+            return args.workers
+        return max(1, min(args.workers, int(args.memory_budget_gb // peak_gb)))
+
+    # Group consecutive partitions that can share the same concurrency.
+    batches: list[tuple[list[str], int]] = []
+    for path in ordered:
+        w = workers_for(rows_by_path[path])
+        if batches and batches[-1][1] == w:
+            batches[-1][0].append(path)
+        else:
+            batches.append(([path], w))
+
+    plan = ", ".join(f"{len(b)}@{w}w" for b, w in batches)
     print(
-        f"  {len(big):,} large partitions (>= {args.big_bytes / 1024**2:.0f} MiB) run serially\n"
-        f"  {len(small):,} small partitions run with {args.workers} workers",
+        f"  memory budget {args.memory_budget_gb} GiB -> schedule: {plan}",
         flush=True,
     )
 
@@ -141,8 +172,8 @@ def main() -> None:
                         flush=True,
                     )
 
-    run(big, 1)
-    run(small, args.workers)
+    for batch, workers in batches:
+        run(batch, workers)
 
     shards = sorted(SHARD_DIR.glob("*.parquet"))
     print(f"\nConcatenating {len(shards):,} shards")

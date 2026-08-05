@@ -41,6 +41,11 @@ def _permute_all(arrays: dict[str, np.ndarray], order: np.ndarray) -> None:
         del source  # old copy released before the next column is permuted
 
 
+def _is_non_decreasing(a: np.ndarray) -> bool:
+    """Whether ``a`` is already sorted ascending, in one linear pass."""
+    return bool(np.all(a[1:] >= a[:-1]))
+
+
 def _quantisation_step(values: np.ndarray) -> float:
     """Smallest positive gap between distinct observed values.
 
@@ -180,11 +185,18 @@ def census_for_table(
     codes = codes.astype(np.int32, copy=False)
     del table  # release Arrow buffers before allocating the sort permutation
 
-    # One sort by (entity, time) serves every per-series statistic below.
-    # Arrays are permuted one at a time and the source freed immediately, so
-    # peak memory stays near three copies of the largest column rather than
-    # holding old and new versions of all three at once.
-    order = np.lexsort((ts, codes))
+    # Group by entity with a STABLE sort on the integer codes alone.
+    #
+    # The obvious `np.lexsort((ts, codes))` is a trap at this scale: it sorts on
+    # the int64 timestamps as well, and on a 234-million-row Ganglia partition
+    # that dominated everything else in the function. Sorting only the int32
+    # codes lets numpy use a radix sort, and stability means each entity's rows
+    # keep their original relative order — which is already chronological in
+    # every ExaData partition observed. Timestamps are therefore re-sorted only
+    # within the groups that actually need it, checked in linear time below.
+    #
+    # Columns are permuted one at a time so only one is ever duplicated.
+    order = np.argsort(codes, kind="stable")
     columns = {"ts": ts, "values": values, "codes": codes}
     del ts, values, codes  # only the dict holds them now
     _permute_all(columns, order)
@@ -201,6 +213,14 @@ def census_for_table(
     for start, end in zip(starts, ends, strict=True):
         group_ts = ts[start:end]
         group_values = values[start:end]
+
+        # Restore chronological order only where the source was not already
+        # ordered. The check is O(n); the sort it avoids is O(n log n).
+        if group_ts.size > 1 and not _is_non_decreasing(group_ts):
+            local = np.argsort(group_ts, kind="stable")
+            group_ts = group_ts[local]
+            group_values = group_values[local]
+
         finite = group_values[np.isfinite(group_values)]
 
         sampling = _sampling_stats(group_ts)

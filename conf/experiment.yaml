@@ -50,6 +50,26 @@ arms:
     step_minutes: 15
 
 # ---------------------------------------------------------------------------
+# Series sampling
+#
+# The census covers far more series than can be forecast — a single Ganglia
+# partition alone holds nearly a thousand nodes. The sweep therefore runs on a
+# stratified sample, drawn with the seed above so it is exactly reproducible.
+#
+# Strata are (plugin, origin, value_kind): the axes the study's hypothesis is
+# about. Sampling within a stratum is uniform at random, never by any property
+# related to predictability.
+# ---------------------------------------------------------------------------
+sampling:
+  per_stratum: 40
+  eligibility:
+    min_samples: 2000        # enough for 20 origins at a 96-step horizon
+    min_coverage: 0.5        # at least half the expected samples present
+    exclude_constant: true   # MASE is undefined; counted and reported, not hidden
+  # Constant and near-constant series are a finding in their own right and are
+  # reported as a share of the census, not silently dropped.
+
+# ---------------------------------------------------------------------------
 # Predictability measures (Phase 3) — computed with no forecaster involved
 # ---------------------------------------------------------------------------
 features:
