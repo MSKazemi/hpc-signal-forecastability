@@ -21,9 +21,21 @@ patterns are different across nodes. The reported values are an approximation."*
 as unpredictable, we cannot yet distinguish "this signal is intrinsically hard" from "this signal
 was sampled badly".
 
-**To settle.** Measure Δt irregularity as a *first-class covariate* (CV of inter-sample interval,
-duplicate-timestamp rate, gap distribution) and include it in the linking regression. Then test
-whether Ganglia's family effect survives conditioning on it. Additionally, resample a matched
+**A trap found while measuring this.** The first attempt used the coefficient of variation of the
+inter-sample interval, `dt_cv`, computed over every interval. That measure reported **IPMI** as
+the least regular plugin — the opposite of what the documentation says. The cause is that one
+multi-day outage in a month of 20-second samples dominates the statistic: `dt_cv` is an outage
+detector wearing a jitter label. Had it gone unnoticed, the paper would have contradicted the
+dataset's own documentation on the strength of an artefact.
+
+The census now records three distinct quantities, because they are three distinct problems for a
+forecaster: `dt_jitter`, the interquartile spread of the interval relative to its median, which is
+insensitive to a handful of long gaps; `gap_frac`, the share of intervals exceeding ten times the
+median; and `coverage`, the share of expected samples present. A signal can be finely jittered,
+coarsely interrupted, or both.
+
+**To settle.** Include all three as *first-class covariates* in the linking regression, then test
+whether Ganglia's family effect survives conditioning on them. Additionally, resample a matched
 IPMI signal onto Ganglia's observed Δt pattern and measure how much predictability is destroyed —
 this gives a direct, quantitative instrumentation penalty.
 
@@ -98,20 +110,30 @@ predictability phase (which uses no forecaster and no test data), record the cho
 
 ---
 
-## OI-6 — No GPU: the neural tier may be capacity-limited `IMPORTANT`
+## OI-6 — No sequence model has been run `IMPORTANT`
 
 **Why it matters.** A load-bearing part of the argument is "even strong models cannot beat the
-intrinsic floor". If the neural tier (TCN, N-BEATS, PatchTST) is trained small because the
-machine has 24 CPU threads and no GPU, a reviewer can reasonably object that a larger model would
-have done better, and the claim collapses to "the models we could afford did poorly".
+intrinsic floor". The machine has 24 CPU threads and no GPU, and the sweep covers thousands of
+series, so every model in the suite is small by necessity. A reviewer can reasonably object that a
+larger or better-suited model would have done better, and the claim would collapse to "the models
+we could afford did poorly".
 
-**To settle.** (a) Report exact model capacity, training budget, and hardware. (b) Show the
-*capacity–skill curve*: if skill saturates well before the largest model tried, capacity is not
-the binding constraint and the argument survives. (c) Where feasible, include a zero-shot
-pretrained forecaster as an upper reference point without paying training cost.
+**What is now run.** A capacity ladder rather than a single comparison, since saturation is a
+claim about a curve: gradient-boosted trees at three capacities (8/15, 24/60, 48/200 lags and
+iterations) and feed-forward networks at two (64-32 and 128-64-32 hidden units over 24- and
+48-step lag windows).
 
-**Fallback.** State the claim as "skill saturates across four orders of model complexity" rather
-than "no model can do better".
+**What is still missing.** `mlp` is a multilayer perceptron over a lag window — **not** a sequence
+model. No TCN, N-BEATS, PatchTST, or pretrained forecaster has been run. The paper may therefore
+say that skill saturates across the capacity ladder actually tested, and may not say that deep
+models cannot help.
+
+**To settle.** Run one genuine sequence model, and ideally one zero-shot pretrained forecaster as
+an upper reference point that costs no training. If skill saturates well before the largest model
+tried, capacity is not the binding constraint and the argument survives.
+
+**Fallback.** State the claim strictly as "skill saturates across the capacity ladder tested,
+which spans four architecture families and roughly two orders of magnitude of parameter count".
 
 ---
 

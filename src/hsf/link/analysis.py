@@ -52,9 +52,17 @@ FEATURE_COLUMNS = [
     "filled_fraction",
 ]
 
+# Observation-quality covariates, kept apart from the signal measures so their
+# contribution can be isolated. These describe the INSTRUMENT, not the
+# phenomenon, and OI-1 turns on being able to separate the two. dt_jitter and
+# gap_frac are deliberately both present: fine-grained jitter and coarse
+# outages are different problems for a forecaster, and an earlier single
+# combined measure (dt_cv) conflated them badly enough to invert the ranking.
+SAMPLING_COLUMNS = ["dt_jitter", "gap_frac", "coverage"]
+
 # Carried separately so their contribution can be isolated from signal
 # structure. These describe the INSTRUMENT, not the phenomenon.
-INSTRUMENT_COLUMNS = ["log_quantisation_step", "log_step_s"]
+INSTRUMENT_COLUMNS = ["log_quantisation_step", "log_step_s", *SAMPLING_COLUMNS]
 
 
 def prepare(features: pd.DataFrame, skill: pd.DataFrame, *, horizon: int) -> pd.DataFrame:

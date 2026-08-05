@@ -64,6 +64,7 @@ def main() -> None:
     label_columns = [
         "plugin", "metric", "entity", "year_month",
         "origin", "value_kind", "scope", "controlled", "quantisation_step",
+        "dt_jitter", "gap_frac", "coverage",
     ]
     features = features.merge(
         sample[label_columns],

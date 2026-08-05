@@ -1,21 +1,26 @@
 """The tiered forecaster suite.
 
-Tiers of increasing model complexity. What is implemented **today**:
+Tiers of increasing model complexity:
 
 ===========  =====================================================
 naive        persistence, seasonal naive, drift, training mean
 statistical  Theta, damped Holt exponential smoothing, ridge AR(p)
-ml           gradient-boosted trees on lagged values
+ml           gradient-boosted trees at three capacities
+neural       feed-forward networks on a lag window, two capacities
 ===========  =====================================================
 
-Not yet implemented, and tracked as OI-6: a neural tier (TCN / N-BEATS /
-PatchTST). Until it exists, no claim of the form "not even deep models can beat
-this" is licensed, and the paper must say only that skill saturates across the
-three tiers that were actually run.
+Two things this suite is NOT, stated plainly so the paper cannot overclaim:
 
-Note also that ``ar`` here is a ridge-regularised autoregression, not a full
-ARIMA — there is no differencing or moving-average term, and no order
-selection. It is a competent linear baseline, not a claim to have run ARIMA.
+* ``ar`` is a ridge-regularised autoregression, not ARIMA. No differencing, no
+  moving-average term, no order selection.
+* ``mlp`` is a multilayer perceptron over a lag window, not a sequence model.
+  No TCN, N-BEATS, PatchTST, or pretrained forecaster has been run, so no claim
+  of the form "not even deep models can beat this" is licensed. OI-6 stays open
+  until a genuine sequence model is included.
+
+Within the ml and neural tiers the same architecture appears at several
+capacities, because saturation is a claim about a CURVE and a single comparison
+cannot establish it.
 
 The tiers exist to support a specific argument. If skill saturates between the
 statistical and machine-learning tiers and does not improve further, then model
@@ -304,21 +309,135 @@ class GradientBoostedLags:
 
 
 # ---------------------------------------------------------------------------
+# tier 4 — neural
+# ---------------------------------------------------------------------------
+
+
+class MLPLags:
+    """A small feed-forward neural network on lagged values.
+
+    Deliberately named for what it is. This is **not** a sequence model — not a
+    TCN, not N-BEATS, not PatchTST — and the paper must not imply otherwise. It
+    is a multilayer perceptron over a lag window, which is the neural
+    architecture that fits the constraint this study actually operates under:
+    24 CPU threads, no GPU, and thousands of series to fit.
+
+    Its role in the argument is narrow but real. If a nonlinear function
+    approximator with hidden layers cannot extract more from the lag window
+    than gradient-boosted trees can, that is evidence — not proof — that the
+    limit is in the signal. A genuine sequence model remains unrun and OI-6
+    stays open until it is.
+    """
+
+    name = "mlp"
+
+    def __init__(self, n_lags: int = 24, hidden: tuple[int, ...] = (64, 32), seed: int = 0):
+        self.n_lags, self.hidden, self.seed = n_lags, hidden, seed
+
+    def fit(self, y: np.ndarray, seasonal_period: int) -> MLPLags:
+        from sklearn.neural_network import MLPRegressor
+        from sklearn.preprocessing import StandardScaler
+
+        finite = y[np.isfinite(y)]
+        p = min(self.n_lags, max(1, finite.size // 4))
+        self._p = p
+
+        if finite.size <= p + 16 or np.ptp(finite) == 0:
+            self._model = None
+            self._fallback = float(finite[-1]) if finite.size else float("nan")
+            self._history = finite
+            return self
+
+        n_rows = finite.size - p
+        design = np.lib.stride_tricks.sliding_window_view(finite[:-1], p)[-n_rows:]
+        target = finite[p:]
+
+        # Standardise from the TRAINING window only. Fitting the scaler on the
+        # whole series would leak the test window's location and scale.
+        self._x_scaler = StandardScaler().fit(design)
+        self._y_scaler = StandardScaler().fit(target.reshape(-1, 1))
+
+        self._model = MLPRegressor(
+            hidden_layer_sizes=self.hidden,
+            activation="relu",
+            solver="adam",
+            max_iter=120,
+            early_stopping=False,
+            random_state=self.seed,
+        ).fit(
+            self._x_scaler.transform(design),
+            self._y_scaler.transform(target.reshape(-1, 1)).ravel(),
+        )
+        self._history = finite[-p:]
+        return self
+
+    def predict(self, horizon: int) -> np.ndarray:
+        if self._model is None:
+            return np.full(horizon, self._fallback)
+        history = list(self._history)
+        out = []
+        for _ in range(horizon):
+            window = np.array(history[-self._p :]).reshape(1, -1)
+            scaled = self._model.predict(self._x_scaler.transform(window))
+            nxt = float(self._y_scaler.inverse_transform(scaled.reshape(-1, 1))[0, 0])
+            out.append(nxt)
+            history.append(nxt)
+        return np.array(out)
+
+
+# ---------------------------------------------------------------------------
+# capacity ladder
+#
+# The study's argument needs skill to SATURATE with model capacity. That is a
+# claim about a curve, not about a single comparison, so the suite includes
+# deliberately under- and over-powered variants of the same architectures. If
+# skill keeps climbing along this ladder, the thesis is wrong and the ladder is
+# what shows it.
+# ---------------------------------------------------------------------------
+
+
+class TinyGBT(GradientBoostedLags):
+    name = "gbt_tiny"
+
+    def __init__(self):
+        super().__init__(n_lags=8, max_iter=15)
+
+
+class LargeGBT(GradientBoostedLags):
+    name = "gbt_large"
+
+    def __init__(self):
+        super().__init__(n_lags=48, max_iter=200)
+
+
+class LargeMLP(MLPLags):
+    name = "mlp_large"
+
+    def __init__(self):
+        super().__init__(n_lags=48, hidden=(128, 64, 32))
+
+
+# ---------------------------------------------------------------------------
 # suite assembly
 # ---------------------------------------------------------------------------
 
 NAIVE_TIER = (Persistence, SeasonalNaive, Drift, TrainingMean)
 STATISTICAL_TIER = (Theta, ExponentialSmoothing, AutoRegressive)
-ML_TIER = (GradientBoostedLags,)
+ML_TIER = (TinyGBT, GradientBoostedLags, LargeGBT)
+NEURAL_TIER = (MLPLags, LargeMLP)
 
 TIERS: dict[str, tuple] = {
     "naive": NAIVE_TIER,
     "statistical": STATISTICAL_TIER,
     "ml": ML_TIER,
+    "neural": NEURAL_TIER,
 }
+
+# Ordering used for the saturation figure: roughly increasing capacity.
+TIER_ORDER = ["naive", "statistical", "ml", "neural"]
 
 
 def build_suite(tiers: list[str] | None = None) -> list:
     """Instantiate one forecaster per model in the requested tiers."""
-    selected = tiers or list(TIERS)
+    selected = tiers or TIER_ORDER
     return [cls() for tier in selected for cls in TIERS[tier]]
