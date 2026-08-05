@@ -19,6 +19,7 @@ import argparse
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 
 import pandas as pd
@@ -33,9 +34,12 @@ from hsf.io.schema import entity_columns, is_timeseries_plugin  # noqa: E402
 
 SHARD_DIR = paths.INTERIM / "_census"
 
-# Measured, not estimated: the 233,715,011-row Gpu1_memory_temp partition peaked
-# at 15.3 GiB resident. Used to derive safe concurrency from a memory budget.
-PEAK_BYTES_PER_ROW = 70
+# Deliberately pessimistic. 70 B/row was measured on one partition and used as
+# the budget divisor; two runs then exhausted memory and the kernel killed an
+# unrelated Kubernetes pod on this shared machine both times. Peak varies with
+# entity cardinality and Arrow's internal buffering, and being wrong here has a
+# cost outside this project, so the estimate is doubled.
+PEAK_BYTES_PER_ROW = 140
 
 # Fixed entity panel, read from conf so the value is pre-registered rather than
 # a tuning knob. See hsf.io.panel for why membership is hashed and why the same
@@ -103,7 +107,7 @@ def main() -> None:
     ap.add_argument(
         "--memory-budget-gb",
         type=float,
-        default=24.0,
+        default=12.0,
         help="total resident memory the pool may use; concurrency is derived from it",
     )
     ap.add_argument("--plugins", nargs="*", default=None, help="restrict to these plugin families")
@@ -135,9 +139,6 @@ def main() -> None:
     # Gpu0_gpu_temp compresses far harder than a high-entropy float counter, so
     # a 435 MiB file held 234M rows while a 364 MiB file held only 90M — byte
     # size put the heaviest partition in the wrong bucket entirely.
-    #
-    # PEAK_BYTES_PER_ROW is measured, not guessed: the 233.7M-row
-    # Gpu1_memory_temp partition peaked at 15.3 GiB, i.e. ~70 B/row.
     rows_by_path = {p: pq.read_metadata(p).num_rows for p in todo}
 
     # Descending, so the heaviest partitions are handled while the pool is
@@ -166,6 +167,33 @@ def main() -> None:
     )
 
     def run(batch: list[str], workers: int) -> None:
+        """Process a batch, retrying serially if the pool dies.
+
+        A BrokenProcessPool means a worker was killed from outside — almost
+        always the OOM killer. Retrying the batch with one worker is slow but
+        finishes; letting the exception escape would abort the run and, worse,
+        leave a caller that does not check exit codes to continue against a
+        stale manifest.
+        """
+        nonlocal done, errors, cached
+        if not batch:
+            return
+        try:
+            _run_pool(batch, workers)
+        except BrokenProcessPool:
+            remaining = [p for p in batch if not _shard_exists(p)]
+            print(
+                f"  !! worker pool died (likely OOM); retrying {len(remaining):,} "
+                f"partitions serially",
+                flush=True,
+            )
+            _run_pool(remaining, 1)
+
+    def _shard_exists(path_str: str) -> bool:
+        year_month, plugin, metric = parse_partition_path(Path(path_str))
+        return shard_path(year_month, plugin, metric).exists()
+
+    def _run_pool(batch: list[str], workers: int) -> None:
         nonlocal done, errors, cached
         if not batch:
             return

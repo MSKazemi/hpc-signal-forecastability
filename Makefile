@@ -12,7 +12,7 @@ MIN_FREE_GB ?= 30
 WORKERS   ?= 4
 # Concurrency is derived from this budget, not from the core count: the machine
 # is shared with other workloads and an early run was OOM-killed.
-MEM_BUDGET_GB ?= 22
+MEM_BUDGET_GB ?= 12
 
 PY := uv run python
 .DEFAULT_GOAL := help
