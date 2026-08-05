@@ -264,6 +264,36 @@ between-family comparison.
 
 ---
 
+## OI-12 — Skill is measured on a subset of the series predictability is measured on `IMPORTANT`
+
+**Why it matters.** The linking analysis regresses forecast skill on predictability measures.
+Predictability is computed for all 1,419 sampled series, but skill for only **437** of them, so the
+regression's sample size is set by a compute budget rather than by the science.
+
+**Why it is bounded that way.** Profiling the full suite gave 7.9 s per series for four rolling
+origins across twelve models and four horizons, dominated by the two largest models. Over 1,419
+series with six origins that is roughly 50 hours on this machine, which the study cannot afford —
+an earlier attempt was producing two partitions per 44 minutes and would have taken about 300
+hours. Cost was cut in three independent places rather than one, so no single choice carries the
+whole reduction: origins 6→4, training window 4,000→1,500 most-recent points, and a cap of 12
+series per stratum.
+
+**Why the subset is defensible.** Membership is a blake2b hash of the series identity, so it is
+reproducible, independent of anything the data does, and specifically not "the first N" or "the
+ones that finished quickly" — either of which would correlate with series length and therefore
+with cadence and family. Every stratum is still represented.
+
+**What it costs.** Roughly 26 series per signal family for the leave-one-family-out
+cross-validation. That is enough to fit, but confidence intervals on the held-out R² will be wide,
+and the study must report them rather than a point estimate.
+
+**To settle.** Re-run the sweep at a higher cap on a machine with more cores, or restrict the
+expensive tiers to the subset while running the cheap tiers on all 1,419 series — the latter costs
+almost nothing and would let the linking analysis use the full sample for every model except the
+two largest.
+
+---
+
 ## OI-10 — Related-work claims are not yet verified against source PDFs `OPEN`
 
 No literature has been harvested yet. Every claim about prior work must be checked against the

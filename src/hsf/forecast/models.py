@@ -266,7 +266,7 @@ class GradientBoostedLags:
 
     name = "gbt"
 
-    def __init__(self, n_lags: int = 24, max_iter: int = 60, seed: int = 0):
+    def __init__(self, n_lags: int = 24, max_iter: int = 40, seed: int = 0):
         self.n_lags, self.max_iter, self.seed = n_lags, max_iter, seed
 
     def fit(self, y: np.ndarray, seasonal_period: int) -> GradientBoostedLags:
@@ -331,7 +331,7 @@ class MLPLags:
 
     name = "mlp"
 
-    def __init__(self, n_lags: int = 24, hidden: tuple[int, ...] = (64, 32), seed: int = 0):
+    def __init__(self, n_lags: int = 24, hidden: tuple[int, ...] = (48, 24), seed: int = 0):
         self.n_lags, self.hidden, self.seed = n_lags, hidden, seed
 
     def fit(self, y: np.ndarray, seasonal_period: int) -> MLPLags:
@@ -361,7 +361,7 @@ class MLPLags:
             hidden_layer_sizes=self.hidden,
             activation="relu",
             solver="adam",
-            max_iter=120,
+            max_iter=60,
             early_stopping=False,
             random_state=self.seed,
         ).fit(
@@ -400,21 +400,21 @@ class TinyGBT(GradientBoostedLags):
     name = "gbt_tiny"
 
     def __init__(self):
-        super().__init__(n_lags=8, max_iter=15)
+        super().__init__(n_lags=8, max_iter=10)
 
 
 class LargeGBT(GradientBoostedLags):
     name = "gbt_large"
 
     def __init__(self):
-        super().__init__(n_lags=48, max_iter=200)
+        super().__init__(n_lags=48, max_iter=120)
 
 
 class LargeMLP(MLPLags):
     name = "mlp_large"
 
     def __init__(self):
-        super().__init__(n_lags=48, hidden=(128, 64, 32))
+        super().__init__(n_lags=48, hidden=(96, 48))
 
 
 # ---------------------------------------------------------------------------

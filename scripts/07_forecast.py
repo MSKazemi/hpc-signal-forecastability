@@ -173,6 +173,34 @@ def main() -> None:
     SHARD_DIR.mkdir(parents=True, exist_ok=True)
 
     sample = pd.read_csv(args.sample)
+
+    # Bound the sweep. Predictability is measured on every sampled series;
+    # skill is measured on a deterministic subset, because profiling put the
+    # full suite at ~4.7 s per series per origin and the whole sample would
+    # take ~50 hours. Membership is a hash of the series identity, so it is
+    # reproducible and uncorrelated with anything the data does — never "the
+    # first N" or "the ones that ran quickly". Recorded as OI-12.
+    cap = conf["forecast"].get("max_series_per_stratum")
+    if cap:
+        identity = (
+            sample.plugin + "|" + sample.metric + "|"
+            + sample.entity.astype(str) + "|" + sample.year_month
+        )
+        sample = sample.assign(
+            _rank=identity.map(
+                lambda x: int(hashlib.blake2b(x.encode(), digest_size=8).hexdigest(), 16)
+            )
+        )
+        before = len(sample)
+        sample = (
+            sample.sort_values("_rank")
+            .groupby(["plugin", "origin", "value_kind"], observed=True)
+            .head(cap)
+            .drop(columns="_rank")
+            .reset_index(drop=True)
+        )
+        print(f"forecast subset: {len(sample):,} of {before:,} sampled series (cap {cap}/stratum)")
+
     jobs = [
         {
             "year_month": year_month,

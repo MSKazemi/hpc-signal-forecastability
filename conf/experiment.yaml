@@ -116,7 +116,7 @@ forecast:
   # are 15 min, 1 h, 3 h, and 24 h.
   horizons: [1, 4, 12, 96]
   rolling_origin:
-    n_origins: 6
+    n_origins: 4
     min_train_fraction: 0.5
     gap: 0                  # no gap; the harness asserts strict causality itself
     # Most recent points used for training at each origin. Native-cadence
@@ -124,11 +124,20 @@ forecast:
     # 96-step horizon can use; without a cap the sweep cost would scale with
     # cadence rather than with difficulty. Truncation is causal — it drops
     # distant past, never future.
-    max_train_points: 4000
+    max_train_points: 1500
   # The non-seasonal (m=1) robustness check doubles the sweep, so it runs on a
   # deterministic one-in-five subsample rather than on everything. The subsample
   # is chosen by hashing the series identity, not by any property of the data.
   robustness_fraction: 0.2
+
+  # Skill is measured on a SUBSET of the sampled series, while predictability is
+  # measured on all of them. Profiling the suite gave ~4.7 s per series per
+  # origin, dominated by the two largest models; over 1,419 series that is ~50
+  # hours, which the study cannot afford and does not need — the linking
+  # regression is limited by between-family variation, not by series count.
+  # The subset is chosen by hashing the series identity, so it is reproducible
+  # and independent of anything the data does. Recorded as OI-12.
+  max_series_per_stratum: 12
   metric: "MASE"
   # Seasonal period for the MASE denominator, fixed a priori from each series'
   # own cadence — a day expressed in steps (OI-5). The non-seasonal m=1 check
