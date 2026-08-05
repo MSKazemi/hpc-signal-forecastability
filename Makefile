@@ -109,8 +109,13 @@ paper:  ## Build paper/paper.pdf (pdflatex + bibtex; latexmk is not installed)
 check-private:  ## Assert no private material and no PDFs are tracked by git
 	@n=$$(git ls-files | grep -c '^private/' || true); \
 	 if [ "$$n" != "0" ]; then echo "FAIL: $$n private files tracked"; exit 1; fi
-	@n=$$(git ls-files | grep -E '\.pdf$$' | grep -v -E '^paper/' | wc -l); \
-	 if [ "$$n" != "0" ]; then echo "FAIL: $$n stray PDFs tracked"; exit 1; fi
+	@# Generated figures and the built manuscript are tracked on purpose; a PDF
+	@# anywhere else is almost certainly a downloaded paper, which must not be
+	@# redistributed from this repository.
+	@stray=$$(git ls-files '*.pdf' \
+	    | grep -v -E '^(paper/paper\.pdf|paper/figures/|results/figures/)' || true); \
+	 if [ -n "$$stray" ]; then \
+	   echo "FAIL: PDFs tracked outside the allowed paths:"; echo "$$stray"; exit 1; fi
 	@echo "OK: no private material or stray PDFs tracked."
 
 .PHONY: check-authorship
