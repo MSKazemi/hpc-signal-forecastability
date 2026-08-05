@@ -4,11 +4,35 @@ A predictability study of the monitoring telemetry of CINECA's **Marconi100** (M
 supercomputer, using the public
 [M100 ExaData](https://doi.org/10.1038/s41597-023-02174-3) release.
 
-> **Status: study in progress — no results yet.** The scaffold, method, and pre-registered
-> analysis plan are in place; the empirical phases are being executed. Nothing in this repository
-> should be cited as a finding until this notice is removed.
+> **Status: descriptive results only. The central claim is not yet tested.**
 >
-> Read [`OPEN_ISSUES.md`](OPEN_ISSUES.md) before relying on anything here.
+> The two findings below are computed and reproducible. The question in the title is **not yet
+> answered**: the forecast benchmark and the linking analysis that would answer it have not
+> finished, so nothing here says whether predictability measures actually explain forecast skill.
+>
+> Read [`OPEN_ISSUES.md`](OPEN_ISSUES.md) before relying on anything. Eleven threats to validity
+> are registered there, written before the results existed; two are marked blocking, and no cited
+> work has yet been checked against its source paper.
+
+## What is established so far
+
+**The monitoring system is itself non-stationary.** Across the 31-month campaign there are 573
+distinct (plugin, metric) pairs, and only **104 are present in every month** — all of them IPMI.
+Ganglia's metric count runs 0 → 33 → 73 → 49 → 157 → 177 and is not even monotonic; SLURM's runs
+20 → 2 → 0 → 2 → 36; Schneider appears in 21-03 and Vertiv and Weather in 21-04. Any comparison
+across months confounds signal behaviour with changes to the instrument.
+
+**A large share of what is monitored never changes.** Fraction of series constant over a month:
+
+| Nagios | Schneider | Logics | Ganglia | Vertiv | SLURM | IPMI | Weather |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 64.8% | 47.0% | 42.9% | 42.9% | 33.1% | 10.5% | 8.4% | 0.0% |
+
+A benchmark that averages over such series reports the share of constants in its sample as much as
+the skill of its models.
+
+Both come from `data/derived/inventory.parquet` and `data/derived/manifest.parquet`, which are
+committed; `make reproduce` regenerates the figures from them without any raw data.
 
 ## The question
 
