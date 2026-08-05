@@ -173,6 +173,7 @@ def iter_evaluations(
     seasonal_period: int,
     n_origins: int,
     min_train_fraction: float = 0.5,
+    max_train: int | None = None,
     timestamps: np.ndarray | None = None,
 ) -> Iterator[dict]:
     """Evaluate every model at every horizon from every origin.
@@ -197,7 +198,16 @@ def iter_evaluations(
     }
 
     for origin in origins:
-        train = y[:origin]
+        # Cap the training window at the most recent `max_train` points.
+        #
+        # Native-cadence series run to hundreds of thousands of points, which is
+        # far more history than a 96-step horizon can use, and fitting on all of
+        # it makes the sweep cost grow with cadence rather than with difficulty
+        # — a 20-second signal would get 45 times the compute of a 15-minute one
+        # for no gain. Taking the most recent window is still strictly causal;
+        # it discards distant past, never future.
+        start = max(0, origin - max_train) if max_train else 0
+        train = y[start:origin]
         if train.size < 2 or not np.isfinite(train).any():
             continue
         denominator = mase_denominator(train, seasonal_period)

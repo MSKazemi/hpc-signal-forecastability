@@ -15,6 +15,7 @@ Output: ``data/derived/skill.parquet`` (committed).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -62,9 +63,12 @@ def run_partition(job: dict) -> tuple[str, int, str]:
 
     conf = job["conf"]
     horizons = conf["forecast"]["horizons"]
-    n_origins = conf["forecast"]["rolling_origin"]["n_origins"]
-    min_train = conf["forecast"]["rolling_origin"]["min_train_fraction"]
+    rolling = conf["forecast"]["rolling_origin"]
+    n_origins = rolling["n_origins"]
+    min_train = rolling["min_train_fraction"]
+    max_train = rolling.get("max_train_points")
     robustness_periods = conf["forecast"]["seasonal_period_robustness"]
+    robustness_fraction = conf["forecast"].get("robustness_fraction", 1.0)
 
     try:
         series_list = load_series(
@@ -96,7 +100,18 @@ def run_partition(job: dict) -> tuple[str, int, str]:
         )
         seasonal = day_steps if 2 <= day_steps <= values.size // 3 else 1
 
-        for period, tag in [(seasonal, "daily"), *[(p, f"m{p}") for p in robustness_periods]]:
+        # The m=1 robustness check runs on a deterministic subsample, chosen by
+        # hashing the series identity so it is reproducible and independent of
+        # anything the data does.
+        identity = f"{plugin}|{metric}|{series.entity}|{year_month}"
+        in_robustness = (
+            int(hashlib.blake2b(identity.encode(), digest_size=4).hexdigest(), 16) % 100
+        ) < int(robustness_fraction * 100)
+        periods = [(seasonal, "daily")]
+        if in_robustness:
+            periods += [(p, f"m{p}") for p in robustness_periods]
+
+        for period, tag in periods:
             for record in iter_evaluations(
                 values,
                 models=models,
@@ -104,6 +119,7 @@ def run_partition(job: dict) -> tuple[str, int, str]:
                 seasonal_period=period,
                 n_origins=n_origins,
                 min_train_fraction=min_train,
+                max_train=max_train,
             ):
                 records.append(
                     {

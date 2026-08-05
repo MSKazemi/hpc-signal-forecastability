@@ -82,7 +82,7 @@ panel:
 sampling:
   per_stratum: 40
   eligibility:
-    min_samples: 2000        # enough for 20 origins at a 96-step horizon
+    min_samples: 2000        # enough for 6 rolling origins at a 96-step horizon
     min_coverage: 0.5        # at least half the expected samples present
     exclude_constant: true   # MASE is undefined; counted and reported, not hidden
   # Constant and near-constant series are a finding in their own right and are
@@ -116,20 +116,34 @@ forecast:
   # are 15 min, 1 h, 3 h, and 24 h.
   horizons: [1, 4, 12, 96]
   rolling_origin:
-    n_origins: 20
+    n_origins: 6
     min_train_fraction: 0.5
     gap: 0                  # no gap; the harness asserts strict causality itself
+    # Most recent points used for training at each origin. Native-cadence
+    # series run to hundreds of thousands of points, far more history than a
+    # 96-step horizon can use; without a cap the sweep cost would scale with
+    # cadence rather than with difficulty. Truncation is causal — it drops
+    # distant past, never future.
+    max_train_points: 4000
+  # The non-seasonal (m=1) robustness check doubles the sweep, so it runs on a
+  # deterministic one-in-five subsample rather than on everything. The subsample
+  # is chosen by hashing the series identity, not by any property of the data.
+  robustness_fraction: 0.2
   metric: "MASE"
-  # Seasonal period for the MASE denominator, fixed a priori per family (OI-5).
-  # 96 = one day at 15-minute steps. Robustness check at m=1 is always also run.
-  seasonal_period_default: 96
+  # Seasonal period for the MASE denominator, fixed a priori from each series'
+  # own cadence — a day expressed in steps (OI-5). The non-seasonal m=1 check
+  # runs on the subsample defined by robustness_fraction above.
   seasonal_period_robustness: [1]
 
+  # The models actually implemented, in roughly increasing capacity. This list
+  # is documentation, not configuration — hsf.forecast.models is authoritative —
+  # so it must not name anything that does not run. It previously listed arima,
+  # lightgbm, tcn, nbeats and patchtst, none of which exist in this codebase.
   tiers:
-    naive:       ["persistence", "seasonal_naive", "drift"]
-    statistical: ["arima", "ets", "theta"]
-    ml:          ["lightgbm"]
-    dl:          ["tcn", "nbeats", "patchtst"]
+    naive:       ["persistence", "seasonal_naive", "drift", "mean"]
+    statistical: ["theta", "ets", "ar"]          # ar is ridge AR(p), NOT ARIMA
+    ml:          ["gbt_tiny", "gbt", "gbt_large"]
+    neural:      ["mlp", "mlp_large"]            # lag-window MLPs, NOT sequence models
 
 # ---------------------------------------------------------------------------
 # Linking analysis (Phase 5)
