@@ -188,9 +188,32 @@ look intrinsically predictable when what we actually measured is its resolution.
 quantisation varies systematically by plugin, this could manufacture the very between-family
 difference the paper claims to find.
 
-**Evidence it is real.** `tests/test_measures.py::test_permutation_entropy_reports_tie_dominated_series_as_ordered`
-constructs an 8-level staircase — a series with no fine structure whatsoever — and it scores below
-0.2, in the same range as a clean sine.
+**Evidence it is real — now measured, not predicted.** Across the 1,419 sampled series, Spearman
+correlation between permutation entropy and the log number of distinct values is **+0.534**. A
+signal's entropy score is substantially a function of its resolution. By `value_kind`:
+
+| value_kind | n | median entropy | median distinct values |
+|---|---:|---:|---:|
+| categorical | 196 | 0.001 | 2 |
+| quantised | 445 | 0.202 | 45 |
+| continuous | 698 | 0.604 | 270 |
+
+`tests/test_measures.py::test_permutation_entropy_reports_tie_dominated_series_as_ordered` shows
+the mechanism on a synthetic 8-level staircase, which scores below 0.2 — the same range as a
+clean sine.
+
+**A second, larger problem the same data exposed.** Entropy is not a measure of forecastability at
+all, in either direction. Monotone counters score entropy 0.000 while having ~17,850 distinct
+values and no quantisation whatsoever: a monotone series has exactly one ordering pattern, so it
+is maximally "ordered" — and it is also genuinely easy to forecast, by drift. Alarm states also
+score 0.000, for the opposite structural reason: they are step functions that almost never change,
+and persistence forecasts them nearly perfectly. Two signal classes with nothing in common land on
+the same entropy value.
+
+The consequence is not that the measure is broken but that no single measure can carry this study.
+The paper must report a predictability *profile* — entropy alongside flat-run fraction, DFA
+exponent, distinct-value count, and quantisation step — and must never rank families by entropy
+alone. That is now an argument for the multi-measure design rather than an incidental caveat.
 
 **To settle.** (a) Always carry `quantisation_step` and `n_unique` from the census alongside the
 entropy in the linking regression, so the model can separate resolution from predictability.

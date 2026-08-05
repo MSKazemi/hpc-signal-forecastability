@@ -91,7 +91,12 @@ def permutation_entropy(x: np.ndarray, order: int = 5, delay: int = 1) -> float:
     probabilities = counts / counts.sum()
     entropy = -np.sum(probabilities * np.log(probabilities))
     max_entropy = np.log(float(math.factorial(order)))
-    return float(entropy / max_entropy) if max_entropy > 0 else NAN
+    if max_entropy <= 0:
+        return NAN
+    # Clamp to [0, 1]. A perfectly ordered series gives -sum(1 * log 1) = -0.0,
+    # which is numerically zero but prints as "-0.000" and reads like an error
+    # in a results table.
+    return float(min(1.0, max(0.0, entropy / max_entropy)))
 
 
 def spectral_entropy(x: np.ndarray) -> float:
