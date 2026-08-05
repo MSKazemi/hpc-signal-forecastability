@@ -1,0 +1,126 @@
+# Literature search, versioned so the review is auditable.
+#
+# A narrative "related work" section is unreproducible: nobody can tell whether
+# a paper is absent because it does not exist, or because nobody searched for
+# it. This file is the search protocol. Changing it changes the result, so it is
+# committed and any change is a recorded change to the method.
+#
+# Each query records WHY it is asked, so a reader can judge whether the coverage
+# matches the claims the paper makes.
+#
+# Search semantics: OpenAlex matches on TITLE AND ABSTRACT, not full text.
+# Full-text matching was tried first and returned mostly high-citation noise
+# from unrelated fields, because the query words appear somewhere in the body of
+# large surveys. Precision matters more than recall for a table meant to be
+# audited, so terms should be phrased as they would appear in a title or
+# abstract. arXiv is queried with its own all-field syntax.
+
+# Contact address sent to OpenAlex and Crossref, which both ask for one so they
+# can reach the caller about heavy usage. Not tracking, just courtesy.
+mailto: "mohsen.seyedkazemi@gmail.com"
+
+# Results requested per query per source.
+per_query: 25
+
+# Only papers from this year onward, except for the named classics below, which
+# predate it and are fetched by DOI.
+from_year: 2015
+
+queries:
+  - id: hpc-telemetry-forecasting
+    rationale: >-
+      Direct prior art: work that forecasts operational signals of HPC systems
+      or datacenters. Determines whether this study's question has been asked.
+    terms:
+      - "HPC monitoring time series forecasting"
+      - "supercomputer telemetry prediction"
+      - "datacenter workload prediction"
+      - "server power consumption forecasting"
+      - "data center temperature prediction"
+      - "high performance computing power prediction"
+      - "cloud resource usage prediction time series"
+      - "thermal prediction data center machine learning"
+
+  - id: hpc-anomaly-detection
+    rationale: >-
+      The dominant use of this telemetry in the literature, and the author's own
+      prior field. Establishes what these signals are normally used for and why
+      forecasting is usually skipped in favour of detection.
+    terms:
+      - "anomaly detection supercomputer monitoring"
+      - "anomaly detection high performance computing"
+      - "Marconi100 ExaData"
+      - "data center fault prediction telemetry"
+      - "node failure prediction HPC"
+      - "holistic monitoring supercomputer ExaMon"
+
+  - id: predictability-theory
+    rationale: >-
+      The instruments this study uses. Establishes that entropy rate, permutation
+      entropy and forecastability are the accepted way to quantify how
+      predictable a series is, independent of any model.
+    terms:
+      - "intrinsic predictability time series"
+      - "permutation entropy time series"
+      - "forecastability measure entropy"
+      - "limits of predictability"
+      - "entropy rate predictability"
+      - "sample entropy complexity time series"
+      - "detrended fluctuation analysis long memory"
+
+  - id: feature-based-forecasting
+    rationale: >-
+      The methodological precedent for regressing forecast accuracy on series
+      features, which is exactly this study's linking step.
+    terms:
+      - "time series features forecast accuracy"
+      - "meta-learning forecasting model selection"
+      - "canonical time series characteristics"
+      - "feature-based time series analysis"
+      - "forecast error explained by series features"
+
+  - id: competitions-and-benchmarks
+    rationale: >-
+      What the forecasting community has learned about which series are hard and
+      why, from large-scale competitions. Provides the outside comparison for
+      the skill levels reported here.
+    terms:
+      - "M4 competition forecasting"
+      - "M5 competition forecasting accuracy"
+      - "forecasting benchmark evaluation"
+      - "mean absolute scaled error forecast accuracy"
+
+  - id: foundation-models
+    rationale: >-
+      The strongest counter-argument to this study's thesis: that a large enough
+      pretrained model would forecast these signals well. Needed to state the
+      capacity limitation honestly (OI-6).
+    terms:
+      - "time series foundation model zero-shot"
+      - "pretrained transformer time series forecasting"
+      - "are transformers effective for time series forecasting"
+      - "long-term time series forecasting transformer"
+
+  - id: sampling-and-missingness
+    rationale: >-
+      Whether irregular sampling and missing data are known to depress forecast
+      accuracy, which the study must separate from signal physics (OI-1).
+    terms:
+      - "irregularly sampled time series"
+      - "missing data forecast accuracy"
+      - "unevenly spaced time series analysis"
+      - "effect of temporal aggregation on forecast accuracy"
+
+# Fetched by DOI regardless of date: foundational references the searches above
+# would miss because they predate from_year or are books.
+classics:
+  - doi: "10.1038/s41597-023-02174-3"
+    why: "The dataset this study analyses."
+  - doi: "10.1016/j.ijforecast.2006.03.001"
+    why: "Hyndman & Koehler: the MASE definition used throughout."
+  - doi: "10.1103/PhysRevLett.88.174102"
+    why: "Bandt & Pompe: permutation entropy."
+  - doi: "10.1103/PhysRevE.49.1685"
+    why: "Peng et al.: detrended fluctuation analysis."
+  - doi: "10.1016/S0169-2070(00)00066-2"
+    why: "Assimakopoulos & Nikolopoulos: the Theta method."

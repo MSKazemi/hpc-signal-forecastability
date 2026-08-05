@@ -1,0 +1,260 @@
+% Why Are HPC Monitoring Signals Hard to Forecast?
+% Working draft — arXiv format, venue not yet chosen.
+%
+% Build: make paper   (pdflatex + bibtex; latexmk is not installed on the
+% development machine, so the Makefile chains the passes explicitly)
+%
+% Every number in this document must be traceable to a committed table under
+% results/tables/ or data/derived/. Placeholders are marked \needsresult so
+% they are impossible to miss in the compiled PDF.
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{natbib}
+
+% Marks a value that has not been computed yet. Deliberately loud.
+\newcommand{\needsresult}[1]{\textcolor{red}{\textbf{[#1]}}}
+% Cites an entry in OPEN_ISSUES.md, keeping paper and register in sync.
+\newcommand{\oi}[1]{\textsc{oi-#1}}
+
+\title{Why Are HPC Monitoring Signals Hard to Forecast?\\
+       \large Intrinsic Predictability Across Nine Telemetry Families
+       of a Tier-0 Supercomputer}
+
+\author{Mohsen Seyedkazemi Ardebili\\
+        \small \texttt{mohsen.seyedkazemi@gmail.com}}
+
+\date{Working draft --- \today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Operational telemetry from high-performance computing systems resists
+forecasting to a degree that is widely reported anecdotally and rarely
+explained. The usual response is to increase model capacity. We argue instead
+that the difficulty is largely \emph{intrinsic to the signals}, differs
+systematically between signal families, and can be quantified without fitting
+any forecaster.
+
+Using the public M100 ExaData release from CINECA's Marconi100 Tier-0
+supercomputer, we characterise telemetry from nine heterogeneous plugin
+families --- out-of-band sensors, operating-system counters, scheduler
+aggregates, alarm states, facility power, cooling-plant control registers, and
+exogenous weather --- collected from the same machine over the same 31 months,
+so that signal type varies while system, workload, and period are held fixed.
+For each series we compute model-free predictability measures spanning entropy,
+periodicity, long memory, non-stationarity, and quantisation, and separately
+measure the forecast skill achieved by a tiered suite ranging from naive
+baselines to gradient-boosted trees under a strictly causal rolling-origin
+protocol.
+
+We report three findings. First, the monitoring infrastructure is itself
+non-stationary: of \num{573} distinct (plugin, metric) pairs observed across the
+campaign, only \num{104} are present in every month, and those are exactly the
+out-of-band sensor set. Second, \needsresult{predictability landscape result}.
+Third, \needsresult{linking result: out-of-sample \(R^2\) under
+leave-one-family-out cross-validation}.
+
+\needsresult{Implications paragraph.}
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+\needsresult{To be written.} Framing points to develop:
+
+\begin{itemize}
+  \item Operators increasingly collect holistic telemetry, and increasingly
+        want to \emph{predict} it --- for thermal safety, power capping, and
+        proactive maintenance --- not merely to detect anomalies after the fact.
+  \item Reported forecast accuracy on this class of signal is poor relative to
+        standard time-series benchmarks, and the literature treats this as a
+        modelling deficiency.
+  \item We invert the question: rather than asking which model does best, we
+        ask how much predictability is present at all, measured independently
+        of any model.
+  \item Contributions: (i) a quantitative census of signal heterogeneity in a
+        Tier-0 monitoring campaign, including the instability of the monitoring
+        system itself; (ii) a model-free predictability profile per signal
+        family; (iii) a causal, scale-free forecast benchmark on the same
+        series; (iv) a test of whether the first predicts the second, validated
+        by holding out entire signal families.
+\end{itemize}
+
+\section{Background}
+\label{sec:background}
+
+\subsection{Marconi100 and the ExaData campaign}
+
+\needsresult{Machine description and campaign scope.}
+
+\subsection{The nine plugin families}
+\label{sec:families}
+
+The value of this dataset for the present question is that it holds the system
+fixed while varying the signal. Table~\ref{tab:families} summarises the
+families and the mechanism that generates each.
+
+\begin{table}[t]
+\centering
+\caption{Telemetry families and their generating mechanisms. Nominal cadences
+are as documented by the dataset; measured cadences differ substantially for
+some families (\S\ref{sec:census}).}
+\label{tab:families}
+\small
+\begin{tabular}{llll}
+\toprule
+Family & Measures & Nominal cadence & Generating mechanism \\
+\midrule
+IPMI      & BMC sensors: temperature, power, fans & \SI{20}{\second} & thermal diffusion, quantised \\
+Ganglia   & OS and GPU counters                   & \SIrange{20}{300}{\second}, irregular & software instrumentation \\
+SLURM     & cluster scheduler aggregates          & \SIrange{5}{10}{\second} & user submission behaviour \\
+Nagios    & service and hardware alarm states     & \SI{15}{\minute} & discrete state machine \\
+Job table & per-job submission records            & event-driven & not a time series (\oi{8}) \\
+Schneider & liquid-cooling PLC registers          & \SI{20}{\second} & closed-loop control \\
+Logics    & room power, PUE, chillers             & --- & facility aggregation \\
+Vertiv    & air-handling units                    & \SI{10}{\second} & closed-loop control \\
+Weather   & outdoor conditions                    & \SI{10}{\minute} & exogenous \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Related work}
+\label{sec:related}
+
+\needsresult{To be written from the screening table in
+\texttt{literature/screening.csv}.} Every claim in this section must be
+verified against the source PDF before submission; none has been, and this is
+tracked as \oi{10}.
+
+\section{Method}
+\label{sec:method}
+
+\subsection{Campaign census}
+\label{sec:census-method}
+
+\needsresult{Describe the inventory and per-series census.}
+
+\subsection{The entity panel}
+
+Node-level series of one metric are highly redundant --- nodes share racks,
+inlet air, cooling zones, and workload --- and are therefore not independent
+samples (\oi{9}). Analysis runs on a fixed panel of \num{96} entities whose
+membership is a stable hash of the entity label under the project seed. Because
+the hash sees only the label, panel membership is identical across every metric
+and every month, so cross-metric comparisons are made on the same physical
+machines rather than on a fresh random slice.
+
+\subsection{A-priori signal taxonomy}
+
+Labels are assigned from the plugin and metric \emph{name} alone, before any
+predictability is measured, so that a finding of between-family differences
+cannot be a relabelling of the result it is meant to explain.
+
+\subsection{Model-free predictability measures}
+
+\needsresult{Table of measures and what each probes.}
+
+\subsection{Forecast protocol}
+
+Skill is measured under rolling-origin evaluation with strict causality
+asserted per split. Errors are scaled by MASE with a denominator computed from
+the training window only; scaling by test-window statistics is the most common
+silent leak in forecasting benchmarks and would compress exactly the
+between-tier differences this study reads. The seasonal period is fixed per
+series \emph{a priori} from its own cadence, with a non-seasonal robustness
+check (\oi{5}).
+
+MASE is undefined where the in-sample seasonal-naive error vanishes. This is
+not an edge case here: a substantial share of control-plane series are constant
+(\S\ref{sec:census}), and near-perfectly periodic windows yield denominators at
+the level of floating-point noise. Such series are reported as undefined rather
+than assigned a spuriously large score.
+
+\subsection{Linking analysis}
+
+\needsresult{Describe leave-one-family-out CV, baseline, ablations.}
+
+\section{Results}
+\label{sec:results}
+
+\subsection{The monitoring system is not stationary}
+\label{sec:census}
+
+Across the 31-month campaign we catalogue \num{10504} metric partitions
+comprising \num{573} distinct (plugin, metric) pairs. Only \num{104} --- all of
+them IPMI --- are present in every month. Ganglia's metric count runs
+\num{0}, \num{33}, \num{73}, \num{49}, \num{157}, \num{177} and is not
+monotonic; SLURM's runs \num{20}, \num{2}, \num{0}, \num{2}, \num{36};
+Schneider first appears in 21-03 and Vertiv and Weather in 21-04.
+
+Any claim compared across months therefore confounds signal behaviour with
+changes to the instrument, and we restrict cross-month statements accordingly
+(\oi{2}).
+
+\needsresult{Figure: coverage over time.}
+
+\subsection{Signal heterogeneity}
+
+\needsresult{Census results: cadence, cadence irregularity, coverage,
+quantisation, constant fraction, per family.}
+
+\subsection{The predictability landscape}
+
+\needsresult{Feature distributions per family.}
+
+\subsection{Forecast skill}
+
+\needsresult{Skill by tier, horizon, and family; the saturation test.}
+
+\subsection{Does predictability explain skill?}
+
+\needsresult{Leave-one-family-out \(R^2\), importances, ablations.}
+
+\section{Threats to validity}
+\label{sec:threats}
+
+The full register is maintained in \texttt{OPEN\_ISSUES.md} and each item is
+cited from the text above. The load-bearing ones are:
+
+\begin{description}
+  \item[\oi{1}] Ganglia's sampling irregularity confounds instrumentation with
+        signal physics. Sampling regularity is therefore carried as a covariate
+        and reported separately.
+  \item[\oi{2}] The monitoring system changes over the campaign.
+  \item[\oi{6}] No neural tier has been run; no claim of the form ``not even
+        deep models help'' is licensed.
+  \item[\oi{7}] The error floor is an estimate with a known bias direction, not
+        an information-theoretic bound.
+  \item[\oi{11}] Permutation entropy is biased downward by quantisation, and
+        quantisation varies by family, so entropy is interpreted only alongside
+        the measured quantisation step.
+\end{description}
+
+\section{Conclusion}
+\needsresult{To be written.}
+
+\section*{Data and code availability}
+
+All code, the versioned literature query set, the screening table, and every
+derived table are at
+\url{https://github.com/MSKazemi/hpc-signal-forecastability}. The underlying
+measurements are the public M100 ExaData release~\citep{borghesi2023m100}.
+Results reproduce from the committed derived tables without downloading raw
+data.
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}

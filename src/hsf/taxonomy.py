@@ -38,6 +38,7 @@ from dataclasses import dataclass
 
 ORIGINS = (
     "thermal",           # temperatures of silicon, air, or fluid
+    "humidity",          # room humidity, a control-loop output
     "power",             # electrical power and energy of IT equipment
     "electrical",        # voltage, current, frequency, power factor
     "cpu_utilisation",   # processor occupancy
@@ -81,7 +82,10 @@ _RULES: list[tuple[str, str, str, bool]] = [
     # (regex, origin, value_kind, controlled)
 
     # --- configuration, limits, and controller gains --------------------------
-    (r"set_?point|_limit$|limit_violation|^kp_|kp_pid|max_ana|manuale_|abilita_|"
+    # Schneider exposes matching Max_* and Min_* limit registers; both are
+    # configuration, so the pattern covers each rather than only the maxima.
+    (r"set_?point|_limit$|limit_violation|^kp_|kp_pid|^max_|^min_|out_pid|"
+     r"manuale_|abilita_|diff_minuti|^rif_|^sel_|^start_|^set_|"
      r"power_management_limit|app_clock|_config$|_str$|show_flags|profile",
      "setpoint_config", "quantised", True),
 
@@ -92,9 +96,32 @@ _RULES: list[tuple[str, str, str, bool]] = [
     (r"total_energy_consumption|^energia$|^mwh$|^mvarh$|_total$",
      "error_counter", "monotone_counter", False),
 
+    # --- humidity -------------------------------------------------------------
+    # Kept apart from thermal: room humidity is actively driven by the
+    # humidifier/dehumidifier stage of a CRAC unit, so it is a control-loop
+    # output whose predictability has a different source from a temperature.
+    # Matches Return_Humidity, Ext_Air_Sensor_A_Humidity, Adjusted_Humidity —
+    # but deliberately NOT the bare `humidity` metric, which is Weather's
+    # outdoor reading and belongs to the exogenous family further down.
+    (r"_humidity|humidity_|^adjusted_humidity$", "humidity", "continuous", False),
+
     # --- thermal --------------------------------------------------------------
-    (r"temp|temperature|dew_point|feels_like|_t_mandata|_t_ritorno|delta_temp",
+    # `ambient` is the node inlet temperature and `pcie` the PCIe slot
+    # temperature; both are documented in degrees Celsius.
+    # Schneider names its process temperatures T_mandata (supply), T_ritorno
+    # (return) and T_scambio (heat exchange), in Italian and abbreviated.
+    (r"temp|temperature|dew_point|feels_like|delta_temp|"
+     r"^t_mandata|^t_ritorno|^t_scambio|^ambient$|^pcie$",
      "thermal", "quantised", False),
+
+    # --- discrete health and status ------------------------------------------
+    # Deliberately ahead of the mechanism rules below. A signal that reports
+    # *whether* something is running is a discrete state, whatever equipment it
+    # belongs to: In_marcia_p101 is pump 101's on/off status, not a flow
+    # measurement, and its predictability comes from switching behaviour rather
+    # than from fluid dynamics.
+    (r"^state$|allarme|^alm_|_fault$|status|stato|comlost|bad_values|in_marcia",
+     "alarm_state", "categorical", False),
 
     # --- fans, pumps, valves, flow -------------------------------------------
     (r"^fan|fan_|valvola|valve|portata|pompe|_p10[1-4]|compressor|"
@@ -121,7 +148,7 @@ _RULES: list[tuple[str, str, str, bool]] = [
     (r"^cpu_|^load_|proc_run|proc_total|cluster_cpu", "cpu_utilisation", "continuous", False),
 
     # --- memory ---------------------------------------------------------------
-    (r"^mem_|^swap_|memory_util|memory_alloc|memory_idle|memory_down|memory_eligible",
+    (r"^mem_|^swap_|memory_util|mem_util|memory_alloc|memory_idle|memory_down|memory_eligible",
      "memory", "continuous", False),
 
     # --- storage --------------------------------------------------------------
@@ -135,9 +162,11 @@ _RULES: list[tuple[str, str, str, bool]] = [
      r"tot_node_hour|eligible|alloc|idle|mixed",
      "scheduler", "quantised", False),
 
-    # --- discrete health ------------------------------------------------------
-    (r"^state$|allarme|^alm_|status|stato|comlost|bad_values|in_marcia",
-     "alarm_state", "categorical", False),
+    # --- actuator position and controller references --------------------------
+    # Posizione_ty14x is the measured valve position and Rif_* the reference the
+    # controller is driving toward: both are the actuated side of the cooling
+    # control loop rather than a sensed physical quantity.
+    (r"posizione_|^rif_|_inverter$", "fan_flow", "continuous", True),
 
     # --- weather --------------------------------------------------------------
     (r"^clouds$|^humidity$|^pressure$|^uvi$|^visibility$|^wind_", "weather", "continuous", False),
@@ -179,10 +208,23 @@ _SCOPE_BY_PLUGIN: dict[str, str] = {
 }
 
 
+# Schneider exposes every register as "PLC_PLC_Q101.<name>". Left in place, the
+# prefix defeats every rule anchored with ^ — Rif_auto_ty141 never matched ^rif_
+# — which silently pushed a whole family to the plugin default. The prefix is
+# stripped before matching so anchors mean what they appear to mean.
+_PANEL_PREFIX = re.compile(r"^PLC_PLC_Q\d+\.", re.IGNORECASE)
+
+
+def normalise_metric(metric: str) -> str:
+    """Metric name with any PLC panel prefix removed."""
+    return _PANEL_PREFIX.sub("", metric)
+
+
 def classify(plugin: str, metric: str) -> Label:
     """Label one (plugin, metric) pair. Metric rules take precedence."""
+    name = normalise_metric(metric)
     for pattern, origin, value_kind, controlled in _COMPILED:
-        if pattern.search(metric):
+        if pattern.search(name):
             return Label(
                 origin=origin,
                 value_kind=value_kind,

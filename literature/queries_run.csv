@@ -1,0 +1,77 @@
+query_id,term,source,n_results,status
+hpc-telemetry-forecasting,HPC monitoring time series forecasting,openalex,5,ok
+hpc-telemetry-forecasting,HPC monitoring time series forecasting,arxiv,0,ok
+hpc-telemetry-forecasting,supercomputer telemetry prediction,openalex,10,ok
+hpc-telemetry-forecasting,supercomputer telemetry prediction,arxiv,0,ok
+hpc-telemetry-forecasting,datacenter workload prediction,openalex,25,ok
+hpc-telemetry-forecasting,datacenter workload prediction,arxiv,0,ok
+hpc-telemetry-forecasting,server power consumption forecasting,openalex,25,ok
+hpc-telemetry-forecasting,server power consumption forecasting,arxiv,0,ok
+hpc-telemetry-forecasting,data center temperature prediction,openalex,25,ok
+hpc-telemetry-forecasting,data center temperature prediction,arxiv,1,ok
+hpc-telemetry-forecasting,high performance computing power prediction,openalex,25,ok
+hpc-telemetry-forecasting,high performance computing power prediction,arxiv,0,ok
+hpc-telemetry-forecasting,cloud resource usage prediction time series,openalex,25,ok
+hpc-telemetry-forecasting,cloud resource usage prediction time series,arxiv,0,ok
+hpc-telemetry-forecasting,thermal prediction data center machine learning,openalex,25,ok
+hpc-telemetry-forecasting,thermal prediction data center machine learning,arxiv,0,ok
+hpc-anomaly-detection,anomaly detection supercomputer monitoring,openalex,25,ok
+hpc-anomaly-detection,anomaly detection supercomputer monitoring,arxiv,0,ok
+hpc-anomaly-detection,anomaly detection high performance computing,openalex,25,ok
+hpc-anomaly-detection,anomaly detection high performance computing,arxiv,0,ok
+hpc-anomaly-detection,Marconi100 ExaData,openalex,25,ok
+hpc-anomaly-detection,Marconi100 ExaData,arxiv,0,ok
+hpc-anomaly-detection,data center fault prediction telemetry,openalex,11,ok
+hpc-anomaly-detection,data center fault prediction telemetry,arxiv,0,ok
+hpc-anomaly-detection,node failure prediction HPC,openalex,25,ok
+hpc-anomaly-detection,node failure prediction HPC,arxiv,0,ok
+hpc-anomaly-detection,holistic monitoring supercomputer ExaMon,openalex,6,ok
+hpc-anomaly-detection,holistic monitoring supercomputer ExaMon,arxiv,0,ok
+predictability-theory,intrinsic predictability time series,openalex,25,ok
+predictability-theory,intrinsic predictability time series,arxiv,0,ok
+predictability-theory,permutation entropy time series,openalex,25,ok
+predictability-theory,permutation entropy time series,arxiv,0,ok
+predictability-theory,forecastability measure entropy,openalex,25,ok
+predictability-theory,forecastability measure entropy,arxiv,0,ok
+predictability-theory,limits of predictability,openalex,25,ok
+predictability-theory,limits of predictability,arxiv,25,ok
+predictability-theory,entropy rate predictability,openalex,0,error: RuntimeError
+predictability-theory,entropy rate predictability,arxiv,1,ok
+predictability-theory,sample entropy complexity time series,openalex,0,error: RuntimeError
+predictability-theory,sample entropy complexity time series,arxiv,0,ok
+predictability-theory,detrended fluctuation analysis long memory,openalex,0,error: RuntimeError
+predictability-theory,detrended fluctuation analysis long memory,arxiv,0,ok
+feature-based-forecasting,time series features forecast accuracy,openalex,0,error: RuntimeError
+feature-based-forecasting,time series features forecast accuracy,arxiv,0,ok
+feature-based-forecasting,meta-learning forecasting model selection,openalex,0,error: RuntimeError
+feature-based-forecasting,meta-learning forecasting model selection,arxiv,0,ok
+feature-based-forecasting,canonical time series characteristics,openalex,0,error: RuntimeError
+feature-based-forecasting,canonical time series characteristics,arxiv,1,ok
+feature-based-forecasting,feature-based time series analysis,openalex,0,error: RuntimeError
+feature-based-forecasting,feature-based time series analysis,arxiv,4,ok
+feature-based-forecasting,forecast error explained by series features,openalex,0,error: RuntimeError
+feature-based-forecasting,forecast error explained by series features,arxiv,0,ok
+competitions-and-benchmarks,M4 competition forecasting,openalex,0,error: RuntimeError
+competitions-and-benchmarks,M4 competition forecasting,arxiv,0,ok
+competitions-and-benchmarks,M5 competition forecasting accuracy,openalex,0,error: RuntimeError
+competitions-and-benchmarks,M5 competition forecasting accuracy,arxiv,0,ok
+competitions-and-benchmarks,forecasting benchmark evaluation,openalex,0,error: RuntimeError
+competitions-and-benchmarks,forecasting benchmark evaluation,arxiv,0,ok
+competitions-and-benchmarks,mean absolute scaled error forecast accuracy,openalex,0,error: RuntimeError
+competitions-and-benchmarks,mean absolute scaled error forecast accuracy,arxiv,0,ok
+foundation-models,time series foundation model zero-shot,openalex,0,error: RuntimeError
+foundation-models,time series foundation model zero-shot,arxiv,0,ok
+foundation-models,pretrained transformer time series forecasting,openalex,0,error: RuntimeError
+foundation-models,pretrained transformer time series forecasting,arxiv,0,ok
+foundation-models,are transformers effective for time series forecasting,openalex,0,error: RuntimeError
+foundation-models,are transformers effective for time series forecasting,arxiv,2,ok
+foundation-models,long-term time series forecasting transformer,openalex,0,error: RuntimeError
+foundation-models,long-term time series forecasting transformer,arxiv,0,ok
+sampling-and-missingness,irregularly sampled time series,openalex,0,error: RuntimeError
+sampling-and-missingness,irregularly sampled time series,arxiv,25,ok
+sampling-and-missingness,missing data forecast accuracy,openalex,0,error: RuntimeError
+sampling-and-missingness,missing data forecast accuracy,arxiv,0,ok
+sampling-and-missingness,unevenly spaced time series analysis,openalex,0,error: RuntimeError
+sampling-and-missingness,unevenly spaced time series analysis,arxiv,0,ok
+sampling-and-missingness,effect of temporal aggregation on forecast accuracy,openalex,0,error: RuntimeError
+sampling-and-missingness,effect of temporal aggregation on forecast accuracy,arxiv,0,ok
