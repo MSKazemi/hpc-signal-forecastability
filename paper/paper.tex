@@ -17,10 +17,19 @@
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{graphicx}
-\usepackage{siunitx}
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
 \usepackage{natbib}
+
+% Number and unit helpers.
+%
+% siunitx is deliberately NOT used. It is absent from a minimal TeX Live
+% install, and a paper that will not compile without an extra package is a
+% reproducibility problem for exactly the readers most likely to try. These do
+% the little this document actually needs.
+\newcommand{\num}[1]{#1}
+\newcommand{\unit}[2]{#1\,#2}
+\newcommand{\unitrange}[3]{#1--#2\,#3}
 
 % Marks a value that has not been computed yet. Deliberately loud.
 \newcommand{\needsresult}[1]{\textcolor{red}{\textbf{[#1]}}}
@@ -117,15 +126,15 @@ some families (\S\ref{sec:census}).}
 \toprule
 Family & Measures & Nominal cadence & Generating mechanism \\
 \midrule
-IPMI      & BMC sensors: temperature, power, fans & \SI{20}{\second} & thermal diffusion, quantised \\
-Ganglia   & OS and GPU counters                   & \SIrange{20}{300}{\second}, irregular & software instrumentation \\
-SLURM     & cluster scheduler aggregates          & \SIrange{5}{10}{\second} & user submission behaviour \\
-Nagios    & service and hardware alarm states     & \SI{15}{\minute} & discrete state machine \\
+IPMI      & BMC sensors: temperature, power, fans & \unit{20}{s} & thermal diffusion, quantised \\
+Ganglia   & OS and GPU counters                   & \unitrange{20}{300}{s}, irregular & software instrumentation \\
+SLURM     & cluster scheduler aggregates          & \unitrange{5}{10}{s} & user submission behaviour \\
+Nagios    & service and hardware alarm states     & \unit{15}{min} & discrete state machine \\
 Job table & per-job submission records            & event-driven & not a time series (\oi{8}) \\
-Schneider & liquid-cooling PLC registers          & \SI{20}{\second} & closed-loop control \\
+Schneider & liquid-cooling PLC registers          & \unit{20}{s} & closed-loop control \\
 Logics    & room power, PUE, chillers             & --- & facility aggregation \\
-Vertiv    & air-handling units                    & \SI{10}{\second} & closed-loop control \\
-Weather   & outdoor conditions                    & \SI{10}{\minute} & exogenous \\
+Vertiv    & air-handling units                    & \unit{10}{s} & closed-loop control \\
+Weather   & outdoor conditions                    & \unit{10}{min} & exogenous \\
 \bottomrule
 \end{tabular}
 \end{table}
