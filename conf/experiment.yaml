@@ -19,7 +19,28 @@ months:
 
 extraction:
   min_free_gb: 30        # abort rather than take the filesystem below this
-  max_interim_gb: 40     # ceiling on data/interim at any moment
+  max_interim_gb: 60     # ceiling on data/interim at any moment
+
+  # Selection rule, fixed before any predictability was measured.
+  #
+  # Sized against data/derived/inventory.parquet: the six "small" plugins cost
+  # 3.4 GiB for the ENTIRE 31-month campaign, so there is no reason to sample
+  # them at all — they are taken whole. Only IPMI (114 GiB) and Ganglia
+  # (282 GiB) need month sampling, and they get every metric in the sampled
+  # months rather than a metric subset, so no metric is chosen by its
+  # behaviour.
+  select:
+    all_months:
+      - weather
+      - vertiv
+      - logics
+      - schneider
+      - nagios
+      - slurm
+      - job_table     # covariate only, see OI-8
+    sampled_months:
+      - ipmi
+      - ganglia
 
 arms:
   native:      # native-cadence data extracted from the monthly archives

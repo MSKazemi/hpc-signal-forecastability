@@ -153,6 +153,35 @@ the headline R², but per-measure significance claims need this too.
 
 ---
 
+## OI-11 — Permutation entropy is biased downward by quantisation `IMPORTANT`
+
+**Why it matters.** Permutation entropy ranks the samples inside each embedding
+window. When samples are *tied* — and they constantly are, because IPMI temperatures are integers,
+Schneider registers are fixed-point, and roughly a third of Vertiv/Schneider series are outright
+constant — the ranking convention (stable argsort, ties resolved by index order) invents an
+ordering that is not in the data. The result scores as *more ordered* than it is.
+
+The consequence is directly adversarial to the study's thesis: a coarsely quantised sensor would
+look intrinsically predictable when what we actually measured is its resolution. Since
+quantisation varies systematically by plugin, this could manufacture the very between-family
+difference the paper claims to find.
+
+**Evidence it is real.** `tests/test_measures.py::test_permutation_entropy_reports_tie_dominated_series_as_ordered`
+constructs an 8-level staircase — a series with no fine structure whatsoever — and it scores below
+0.2, in the same range as a clean sine.
+
+**To settle.** (a) Always carry `quantisation_step` and `n_unique` from the census alongside the
+entropy in the linking regression, so the model can separate resolution from predictability.
+(b) Report the correlation between quantisation step and permutation entropy across families; if
+it is strong, the entropy term cannot be interpreted on its own. (c) As a robustness check,
+recompute entropies on rank-transformed series with ties broken at random rather than by index,
+and confirm the family ordering survives.
+
+**Fallback.** Report permutation entropy only *conditioned on* quantisation, never as a raw
+between-family comparison.
+
+---
+
 ## OI-10 — Related-work claims are not yet verified against source PDFs `OPEN`
 
 No literature has been harvested yet. Every claim about prior work must be checked against the
