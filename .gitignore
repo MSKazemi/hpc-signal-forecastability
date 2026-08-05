@@ -8,19 +8,19 @@ private/
 # Data
 #   data/raw/      symlinks to the read-only M100 ExaData source tree
 #   data/interim/  large intermediate extractions (regenerable)
-#   data/derived/  SMALL committed artefacts — tracked, see negations below
+#   data/derived/  small artefacts — non-parquet ones are tracked
 # ---------------------------------------------------------------------------
 data/raw/
 data/interim/
 !data/derived/
 !data/derived/**
 
-# Never track bulk archives or bulk parquet outside data/derived/
+# Never track bulk archives, and never track parquet anywhere: every parquet
+# in this repo is regenerable from scripts/ against the M100 source tree.
 *.tar
 *.tar.gz
 *.zip
-data/**/*.parquet
-!data/derived/*.parquet
+*.parquet
 
 # ---------------------------------------------------------------------------
 # Literature: metadata is committed, PDFs are not (copyright).
