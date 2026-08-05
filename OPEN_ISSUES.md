@@ -202,6 +202,14 @@ signal's entropy score is substantially a function of its resolution. By `value_
 the mechanism on a synthetic 8-level staircase, which scores below 0.2 — the same range as a
 clean sine.
 
+**How much independent information entropy carries.** Plotting entropy against the fraction of
+steps that simply repeat the previous value shows the two are largely redundant: Pearson
+*r* = −0.84, and a degree-5 polynomial in repetition fraction explains **77.6%** of entropy
+variance. Roughly a fifth of the variance is genuinely something else, and it is concentrated
+among signals that rarely repeat (standard deviation 0.345 in the lowest repetition decile against
+0.048 in the highest). Entropy is therefore not redundant, but on this data it is mostly a
+restatement of how often a signal holds still — which is a far cheaper measure with no tie bias.
+
 **A second, larger problem the same data exposed.** Entropy is not a measure of forecastability at
 all, in either direction. Monotone counters score entropy 0.000 while having ~17,850 distinct
 values and no quantisation whatsoever: a monotone series has exactly one ordering pattern, so it

@@ -159,11 +159,18 @@ def fig_sampling_irregularity(manifest: pd.DataFrame, out: Path) -> None:
 
 
 def fig_predictability_landscape(features: pd.DataFrame, out: Path) -> None:
-    """Where each signal family sits in predictability space.
+    """How much independent information permutation entropy carries.
 
-    Job: identity across two continuous measures -> scatter. Entropy is plotted
-    against quantisation-independent structure so the OI-11 bias is visible
-    rather than hidden.
+    Job: relationship between two continuous measures, with family identity as
+    a secondary encoding -> scatter.
+
+    This figure was drawn expecting families to occupy distinct regions. They do
+    not: every family lies along the same descending band, because entropy is
+    largely a restatement of how often a signal repeats its previous value
+    (Pearson r = -0.84; a degree-5 polynomial in repetition fraction explains
+    77.6% of entropy variance). The residual fifth is real and concentrates
+    among signals that rarely repeat, which is where the axes separate. The
+    honest reading is the one the title states, and it is evidence for OI-11.
     """
     usable = features.dropna(subset=["permutation_entropy", "flat_run_fraction"])
     if usable.empty:
@@ -186,7 +193,16 @@ def fig_predictability_landscape(features: pd.DataFrame, out: Path) -> None:
     ax.set_ylabel("permutation entropy (0 = ordered, 1 = noise)")
     ax.set_ylim(-0.03, 1.05)
     ax.legend(loc="lower left", ncol=2, fontsize=7)
-    ax.set_title("The predictability landscape", loc="left", color=INK_PRIMARY)
+    ax.set_title(
+        "Permutation entropy largely restates how often a signal holds still",
+        loc="left", color=INK_PRIMARY,
+    )
+    ax.text(
+        0.0, -0.16,
+        "All families lie on one band: r = -0.84, and repetition fraction explains 77.6% "
+        "of entropy variance.",
+        transform=ax.transAxes, fontsize=7.5, color=INK_MUTED,
+    )
     save(fig, out)
 
 
