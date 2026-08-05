@@ -1,0 +1,78 @@
+# ---------------------------------------------------------------------------
+# Private working material — NEVER committed, NEVER pushed.
+# Design notes, plans, agent memory, scratch space, and downloaded PDFs.
+# ---------------------------------------------------------------------------
+private/
+
+# ---------------------------------------------------------------------------
+# Data
+#   data/raw/      symlinks to the read-only M100 ExaData source tree
+#   data/interim/  large intermediate extractions (regenerable)
+#   data/derived/  SMALL committed artefacts — tracked, see negations below
+# ---------------------------------------------------------------------------
+data/raw/
+data/interim/
+!data/derived/
+!data/derived/**
+
+# Never track bulk archives or bulk parquet outside data/derived/
+*.tar
+*.tar.gz
+*.zip
+data/**/*.parquet
+!data/derived/*.parquet
+
+# ---------------------------------------------------------------------------
+# Literature: metadata is committed, PDFs are not (copyright).
+# ---------------------------------------------------------------------------
+literature/pdfs/
+*.pdf
+!paper/paper.pdf
+!results/figures/*.pdf
+!paper/figures/*.pdf
+
+# ---------------------------------------------------------------------------
+# LaTeX build products
+# ---------------------------------------------------------------------------
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.dvi
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+.coverage
+htmlcov/
+
+# ---------------------------------------------------------------------------
+# Editors / OS
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# ---------------------------------------------------------------------------
+# Agent tooling — keep out of the public record
+# ---------------------------------------------------------------------------
+.claude/
+CLAUDE.md

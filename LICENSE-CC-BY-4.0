@@ -1,0 +1,29 @@
+Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+Copyright (c) 2026 Mohsen Seyedkazemi Ardebili
+
+The following parts of this repository are licensed under CC BY 4.0:
+
+  paper/          the manuscript text and its figures
+  results/        generated tables and figures
+  data/derived/   derived data tables (series manifest, taxonomy, features, skill)
+  literature/     the screening table and bibliography
+
+You are free to share and adapt this material for any purpose, including
+commercially, provided you give appropriate credit, provide a link to the
+licence, and indicate if changes were made.
+
+Full licence text: https://creativecommons.org/licenses/by/4.0/legalcode
+Human-readable summary: https://creativecommons.org/licenses/by/4.0/
+
+Attribution should cite:
+
+  M. Seyedkazemi Ardebili, "Why Are HPC Monitoring Signals Hard to Forecast?
+  A Predictability Study on M100 ExaData", 2026.
+  https://github.com/MSKazemi/hpc-signal-forecastability
+
+NOTE: the derived data tables are computed from the M100 ExaData release, which
+carries its own licence and citation requirements. Any reuse must additionally
+credit the original dataset — see README.md.
+
+The SOURCE CODE is licensed separately under the MIT License; see LICENSE.

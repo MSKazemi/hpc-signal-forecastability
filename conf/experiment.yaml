@@ -1,0 +1,82 @@
+# Pre-registered experiment configuration.
+#
+# Choices recorded here are made BEFORE seeing results, so that they cannot be
+# tuned to produce a desired conclusion. Any change to this file after results
+# exist must be recorded in OPEN_ISSUES.md with the reason.
+
+seed: 20230288  # arbitrary fixed constant; digits from the ExaData Sci Data article number
+
+# ---------------------------------------------------------------------------
+# Data selection
+# ---------------------------------------------------------------------------
+months:
+  # Chosen to span the observed instrumentation eras (see OI-2), not chosen
+  # for their results.
+  - "20-04"   # commissioning era: IPMI only
+  - "20-11"   # 5 plugins, Ganglia sparse (67 metric partitions)
+  - "21-08"   # all 9 plugins, Ganglia mature (99)
+  - "22-06"   # all 9 plugins, Ganglia richest (355)
+
+extraction:
+  min_free_gb: 30        # abort rather than take the filesystem below this
+  max_interim_gb: 40     # ceiling on data/interim at any moment
+
+arms:
+  native:      # native-cadence data extracted from the monthly archives
+    enabled: true
+  aggregated:  # the 15-minute pre-aggregated per-node IPMI set, all 31 months
+    enabled: true
+    step_minutes: 15
+
+# ---------------------------------------------------------------------------
+# Predictability measures (Phase 3) — computed with no forecaster involved
+# ---------------------------------------------------------------------------
+features:
+  min_length: 512           # series shorter than this are excluded, and counted
+  permutation_entropy:
+    order: 5
+    delay: 1
+  sample_entropy:
+    m: 2
+    r_times_sd: 0.2
+  dfa:
+    min_scale: 8
+    max_scale_fraction: 0.25
+  changepoints:
+    model: "rbf"
+    penalty: "bic"
+  stl:
+    robust: true
+
+# ---------------------------------------------------------------------------
+# Forecast protocol (Phase 4)
+# ---------------------------------------------------------------------------
+forecast:
+  # Horizons in steps. On the aggregated arm one step is 15 minutes, so these
+  # are 15 min, 1 h, 3 h, and 24 h.
+  horizons: [1, 4, 12, 96]
+  rolling_origin:
+    n_origins: 20
+    min_train_fraction: 0.5
+    gap: 0                  # no gap; the harness asserts strict causality itself
+  metric: "MASE"
+  # Seasonal period for the MASE denominator, fixed a priori per family (OI-5).
+  # 96 = one day at 15-minute steps. Robustness check at m=1 is always also run.
+  seasonal_period_default: 96
+  seasonal_period_robustness: [1]
+
+  tiers:
+    naive:       ["persistence", "seasonal_naive", "drift"]
+    statistical: ["arima", "ets", "theta"]
+    ml:          ["lightgbm"]
+    dl:          ["tcn", "nbeats", "patchtst"]
+
+# ---------------------------------------------------------------------------
+# Linking analysis (Phase 5)
+# ---------------------------------------------------------------------------
+link:
+  # Cross-validation is grouped by signal family, so the relation must
+  # generalise to families it has never seen. This is the honest test.
+  cv:
+    scheme: "leave-one-family-out"
+  cluster_robust_by: ["rack", "metric"]   # see OI-9

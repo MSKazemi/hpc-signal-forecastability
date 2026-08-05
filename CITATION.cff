@@ -1,0 +1,66 @@
+cff-version: 1.2.0
+message: "If you use this study or its code, please cite it as below."
+title: "Why Are HPC Monitoring Signals Hard to Forecast? A Predictability Study on M100 ExaData"
+abstract: >-
+  A study of the intrinsic predictability of high-performance-computing
+  monitoring telemetry, using the public M100 ExaData release from CINECA's
+  Marconi100 Tier-0 supercomputer. Rather than treating poor forecast accuracy
+  as a modelling deficiency, the study measures model-free predictability
+  properties of each signal — entropy rate, periodicity, long memory,
+  non-stationarity, quantisation, sampling irregularity, and exogeneity — and
+  tests whether they explain the forecast skill actually achieved by a tiered
+  suite of forecasters ranging from naive baselines to neural models. Signals
+  are drawn from all nine ExaData plugin families, so signal physics varies
+  while the machine, workload, and observation period are held fixed.
+type: software
+authors:
+  - family-names: "Seyedkazemi Ardebili"
+    given-names: "Mohsen"
+    email: "mohsen.seyedkazemi@gmail.com"
+    alias: "MSKazemi"
+repository-code: "https://github.com/MSKazemi/hpc-signal-forecastability"
+license: MIT
+version: 0.1.0
+keywords:
+  - high-performance-computing
+  - time-series-forecasting
+  - predictability
+  - datacenter-telemetry
+  - marconi100
+  - exadata
+  - monitoring
+  - reproducible-research
+references:
+  - type: article
+    title: >-
+      M100 ExaData: a data collection campaign on the CINECA's Marconi100
+      Tier-0 supercomputer
+    doi: "10.1038/s41597-023-02174-3"
+    year: 2023
+    journal: "Scientific Data"
+    volume: "10"
+    authors:
+      - family-names: "Borghesi"
+        given-names: "Andrea"
+      - family-names: "Di Santi"
+        given-names: "Carmine"
+      - family-names: "Molan"
+        given-names: "Martin"
+      - family-names: "Seyedkazemi Ardebili"
+        given-names: "Mohsen"
+      - family-names: "Mauri"
+        given-names: "Alessio"
+      - family-names: "Guarrasi"
+        given-names: "Massimiliano"
+      - family-names: "Galetti"
+        given-names: "Daniela"
+      - family-names: "Cestari"
+        given-names: "Mirko"
+      - family-names: "Barchi"
+        given-names: "Francesco"
+      - family-names: "Benini"
+        given-names: "Luca"
+      - family-names: "Beneventi"
+        given-names: "Francesco"
+      - family-names: "Bartolini"
+        given-names: "Andrea"
