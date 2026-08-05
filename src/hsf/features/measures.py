@@ -36,6 +36,7 @@ import math
 import numpy as np
 from scipy import signal as sp_signal
 from scipy import stats as sp_stats
+from scipy.ndimage import uniform_filter1d
 
 NAN = float("nan")
 
@@ -212,12 +213,21 @@ def seasonal_strength(x: np.ndarray, period: int) -> float:
         return NAN
 
     # Remove a slow trend so it cannot masquerade as seasonality.
+    #
+    # Both steps below must be linear in the series length. The obvious
+    # implementations are not: a daily period at a 10-second cadence is 8,640
+    # steps, so an explicit convolution kernel costs O(n * period) and a Python
+    # loop over phases costs the same again. On a month of 10-second data that
+    # is billions of operations per series, and the sweep never finishes.
     window = min(period, x.size // 2) | 1
-    trend = np.convolve(x, np.ones(window) / window, mode="same")
+    trend = uniform_filter1d(x, size=window, mode="nearest")
     detrended = x - trend
 
     phase = np.arange(x.size) % period
-    seasonal_means = np.array([detrended[phase == p].mean() for p in range(period)])
+    # Phase means by bincount rather than by masking once per phase.
+    counts = np.bincount(phase, minlength=period)
+    sums = np.bincount(phase, weights=detrended, minlength=period)
+    seasonal_means = np.divide(sums, counts, out=np.zeros(period), where=counts > 0)
     seasonal = seasonal_means[phase]
     residual = detrended - seasonal
 

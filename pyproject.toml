@@ -37,7 +37,9 @@ cpd = ["ruptures>=1.1.9"]
 # Literature harvest (Phase 6).
 lit = ["requests>=2.31"]
 # Figures.
-viz = ["matplotlib>=3.8"]
+viz = [
+    "matplotlib>=3.8",
+]
 dev = ["pytest>=8.0", "ruff>=0.4"]
 
 [build-system]

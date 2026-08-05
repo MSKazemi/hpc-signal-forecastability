@@ -25,6 +25,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 from hsf.io.schema import entity_columns
@@ -112,6 +113,40 @@ def _entity_labels(table: pa.Table, keys: tuple[str, ...]) -> np.ndarray:
     )
 
 
+def _filter_by_entities(table: pa.Table, keys: tuple[str, ...], entities: set[str]) -> pa.Table:
+    """Keep only rows belonging to ``entities``, working entirely in Arrow.
+
+    Entity labels are ``"a|b"`` joins of the key columns. Rather than building
+    that string per row, the wanted labels are split back into their per-column
+    components and matched with ``is_in`` on each key, which Arrow evaluates
+    vectorised. For the single-key case — every plugin except Nagios and
+    Logics — this is one membership test.
+    """
+    if len(keys) == 1:
+        keep = pc.is_in(table[keys[0]], value_set=pa.array(sorted(entities)))
+        return table.filter(keep)
+
+    # Multi-key: narrow with a cheap membership test on each key, then make the
+    # exact label match on what survives, which is a small fraction of rows.
+    wanted_parts = [set() for _ in keys]
+    for label in entities:
+        parts = label.split("|")
+        for i, part in enumerate(parts[: len(keys)]):
+            wanted_parts[i].add(part)
+
+    keep = None
+    for key, allowed in zip(keys, wanted_parts, strict=True):
+        mask = pc.is_in(table[key], value_set=pa.array(sorted(allowed)))
+        keep = mask if keep is None else pc.and_(keep, mask)
+    narrowed = table.filter(keep)
+    if narrowed.num_rows == 0:
+        return narrowed
+
+    labels = _entity_labels(narrowed, keys)
+    exact = np.fromiter((label in entities for label in labels), dtype=bool, count=len(labels))
+    return narrowed.filter(pa.array(exact))
+
+
 def load_series(
     partition_path,
     *,
@@ -131,6 +166,15 @@ def load_series(
     keys = entity_columns(plugin, list(schema.names))
     table = pq.read_table(partition_path, columns=["timestamp", "value", *keys])
 
+    # Restrict to the requested entities IN ARROW, before anything becomes a
+    # Python object. Building label strings first and filtering afterwards
+    # means calling to_pylist() on a column of 234 million values, which
+    # allocates a Python string per row; it does not finish in useful time.
+    if entities is not None and keys:
+        table = _filter_by_entities(table, keys, entities)
+        if table.num_rows == 0:
+            return []
+
     ts = (
         table["timestamp"]
         .combine_chunks()
@@ -143,6 +187,7 @@ def load_series(
     except (pa.ArrowInvalid, pa.ArrowNotImplementedError, ValueError):
         return []
 
+    # Safe now: only the selected entities remain, so this is a small column.
     label_array = _entity_labels(table, keys)
     del table
 

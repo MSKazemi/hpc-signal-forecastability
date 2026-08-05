@@ -76,8 +76,12 @@ def _sampling_stats(sorted_ts_ns: np.ndarray) -> dict[str, float]:
         "dt_median_s": nan,
         "dt_mean_s": nan,
         "dt_cv": nan,
+        "dt_jitter": nan,
+        "dt_p25_s": nan,
+        "dt_p75_s": nan,
         "dt_p95_s": nan,
         "dt_max_s": nan,
+        "gap_frac": nan,
         "duplicate_ts_frac": nan,
     }
     if sorted_ts_ns.size < 3:
@@ -90,12 +94,36 @@ def _sampling_stats(sorted_ts_ns: np.ndarray) -> dict[str, float]:
         return {**empty, "duplicate_ts_frac": duplicates}
 
     mean = float(positive.mean())
+    median = float(np.median(positive))
+    p25, p75 = (float(v) for v in np.percentile(positive, [25, 75]))
+
+    # dt_cv and dt_jitter measure DIFFERENT things and must not be conflated.
+    #
+    # dt_cv is computed over every interval, so a single multi-day outage in a
+    # month of 20-second samples inflates it enormously — it is really an
+    # outage detector wearing a jitter label. Read alone it says IPMI is the
+    # least regular plugin, which is the opposite of what the dataset
+    # documentation reports and of what dt_jitter shows.
+    #
+    # dt_jitter is the interquartile spread relative to the median: it
+    # describes the variability of the TYPICAL interval and is insensitive to
+    # a handful of long gaps. gap_frac counts those gaps separately.
+    #
+    # Keeping both is what lets OI-1 be settled rather than argued: a signal
+    # can be finely jittered, coarsely interrupted, or both, and these are
+    # different problems for a forecaster.
+    gap_frac = float(np.mean(positive > 10.0 * median)) if median > 0 else nan
+
     return {
-        "dt_median_s": float(np.median(positive)),
+        "dt_median_s": median,
         "dt_mean_s": mean,
         "dt_cv": float(positive.std() / mean) if mean > 0 else nan,
+        "dt_jitter": float((p75 - p25) / median) if median > 0 else nan,
+        "dt_p25_s": p25,
+        "dt_p75_s": p75,
         "dt_p95_s": float(np.percentile(positive, 95)),
         "dt_max_s": float(positive.max()),
+        "gap_frac": gap_frac,
         "duplicate_ts_frac": duplicates,
     }
 
