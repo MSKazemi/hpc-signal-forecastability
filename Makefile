@@ -8,8 +8,11 @@
 
 RAW_DIR   ?= /home/mohsen/exadata/raw
 AGG_DIR   ?= /home/mohsen/exadata/time_aggregated
-MONTHS    ?= 20-04 20-11 21-08 22-06
 MIN_FREE_GB ?= 30
+WORKERS   ?= 4
+# Concurrency is derived from this budget, not from the core count: the machine
+# is shared with other workloads and an early run was OOM-killed.
+MEM_BUDGET_GB ?= 22
 
 PY := uv run python
 .DEFAULT_GOAL := help
@@ -34,39 +37,50 @@ lint:  ## Lint and format-check
 	uv run --extra dev ruff check .
 
 # --- pipeline stages -------------------------------------------------------
+#
+# Stages are numbered in dependency order. Every stage that touches bulk data
+# is resumable: it shards its output under data/interim and skips work already
+# done, so an interrupted run is restarted rather than repeated.
+
+.PHONY: inventory
+inventory:  ## 01 Catalogue every partition of every archive (headers only, no disk cost)
+	$(PY) scripts/01_inventory.py --raw-dir $(RAW_DIR)
 
 .PHONY: extract
-extract:  ## Selectively extract the sampled months from the raw archives
-	$(PY) scripts/01_extract.py --raw-dir $(RAW_DIR) --months $(MONTHS) \
-		--min-free-gb $(MIN_FREE_GB)
+extract:  ## 02 Selectively extract the partitions the study needs
+	$(PY) scripts/02_extract.py --raw-dir $(RAW_DIR) --min-free-gb $(MIN_FREE_GB)
 
 .PHONY: manifest
-manifest:  ## Build the series census (data/derived/manifest.parquet)
-	$(PY) scripts/02_manifest.py --agg-dir $(AGG_DIR)
+manifest:  ## 03 Per-series census over the fixed entity panel
+	$(PY) scripts/03_manifest.py --workers $(WORKERS) --memory-budget-gb $(MEM_BUDGET_GB)
 
 .PHONY: taxonomy
-taxonomy:  ## Apply the a-priori signal taxonomy (data/derived/taxonomy.csv)
-	$(PY) scripts/03_taxonomy.py
+taxonomy:  ## 04 Apply the a-priori signal taxonomy
+	$(PY) scripts/04_taxonomy.py
+
+.PHONY: sample
+sample:  ## 05 Draw the stratified series sample
+	$(PY) scripts/05_sample.py
 
 .PHONY: features
-features:  ## Compute model-free predictability measures (data/derived/features.parquet)
-	$(PY) scripts/04_features.py
+features:  ## 06 Model-free predictability measures
+	$(PY) scripts/06_features.py
 
 .PHONY: forecast
-forecast:  ## Run the tiered forecast benchmark (data/derived/skill.parquet)
-	$(PY) scripts/05_forecast.py
+forecast:  ## 07 Tiered forecast benchmark
+	$(PY) scripts/07_forecast.py --workers $(WORKERS)
 
 .PHONY: link
-link:  ## Linking analysis: skill ~ predictability (results/tables)
-	$(PY) scripts/06_link.py
+link:  ## 08 Linking analysis: skill ~ predictability
+	$(PY) scripts/08_link.py
 
 .PHONY: figures
-figures:  ## Regenerate every figure from committed derived data
-	$(PY) scripts/07_figures.py
+figures:  ## 09 Regenerate every figure from committed derived data
+	$(PY) scripts/09_figures.py
 
 .PHONY: literature
-literature:  ## Harvest the literature (OpenAlex / arXiv / Semantic Scholar)
-	$(PY) scripts/08_literature.py
+literature:  ## 10 Harvest the literature (OpenAlex / arXiv / Semantic Scholar)
+	$(PY) scripts/10_literature.py
 
 # --- reproduction paths ----------------------------------------------------
 
@@ -75,7 +89,7 @@ reproduce: link figures  ## Reviewer path: reproduce all results from committed 
 	@echo "Reproduced all tables and figures from data/derived/."
 
 .PHONY: reproduce-from-raw
-reproduce-from-raw: extract manifest taxonomy features forecast link figures  ## Full pipeline from raw archives
+reproduce-from-raw: inventory extract manifest taxonomy sample features forecast link figures  ## Full pipeline from raw archives
 	@echo "Full pipeline complete."
 
 # --- paper -----------------------------------------------------------------

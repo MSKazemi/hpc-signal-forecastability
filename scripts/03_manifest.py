@@ -23,6 +23,7 @@ from pathlib import Path
 
 import pandas as pd
 import pyarrow.parquet as pq
+import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -35,6 +36,13 @@ SHARD_DIR = paths.INTERIM / "_census"
 # Measured, not estimated: the 233,715,011-row Gpu1_memory_temp partition peaked
 # at 15.3 GiB resident. Used to derive safe concurrency from a memory budget.
 PEAK_BYTES_PER_ROW = 70
+
+# Fixed entity panel, read from conf so the value is pre-registered rather than
+# a tuning knob. See hsf.io.panel for why membership is hashed and why the same
+# entities are used for every metric and month.
+_CONF = yaml.safe_load((paths.CONF / "experiment.yaml").read_text())
+MAX_ENTITIES = int(_CONF["panel"]["max_entities"])
+SEED = int(_CONF["seed"])
 
 
 def parse_partition_path(path: Path) -> tuple[str, str, str]:
@@ -69,7 +77,14 @@ def process_one(path_str: str) -> tuple[str, int, str]:
         # 100M rows, so pulling unused tag columns would dominate memory.
         wanted = ["timestamp", "value", *entity_columns(plugin, list(schema.names))]
         table = pq.read_table(path, columns=wanted)
-        census = census_for_table(table, plugin=plugin, metric=metric, year_month=year_month)
+        census = census_for_table(
+            table,
+            plugin=plugin,
+            metric=metric,
+            year_month=year_month,
+            max_entities=MAX_ENTITIES,
+            seed=SEED,
+        )
         del table
     except Exception as exc:  # noqa: BLE001 - one bad partition must not kill the run
         return label, 0, f"error: {type(exc).__name__}: {exc}"

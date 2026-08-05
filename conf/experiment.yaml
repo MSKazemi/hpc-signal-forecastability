@@ -50,6 +50,25 @@ arms:
     step_minutes: 15
 
 # ---------------------------------------------------------------------------
+# Fixed entity panel
+#
+# The extracted partitions hold ~55 billion rows, and node-level series of the
+# same metric are highly redundant — nodes share racks, inlet air, cooling
+# zones, and workload, which is also why they are not independent samples
+# (OI-9). Analysis therefore runs on a fixed panel of entities.
+#
+# Membership is a stable hash of the entity label under the seed above, so the
+# panel is identical on every re-run and, critically, identical across every
+# metric and month: node 142 is either in the panel everywhere or nowhere.
+# Cross-metric comparisons are then made on the same physical machines.
+#
+# Plugins with fewer entities than the cap — Vertiv's 25 devices, Schneider's
+# two panels, Weather's single facility series — are taken whole.
+# ---------------------------------------------------------------------------
+panel:
+  max_entities: 96   # of ~980 nodes; small plugins are unaffected
+
+# ---------------------------------------------------------------------------
 # Series sampling
 #
 # The census covers far more series than can be forecast — a single Ganglia

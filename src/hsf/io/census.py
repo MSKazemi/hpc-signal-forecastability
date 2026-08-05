@@ -22,7 +22,9 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pyarrow as pa
+import pyarrow.compute as pc
 
+from hsf.io.panel import select_panel
 from hsf.io.schema import entity_columns
 
 
@@ -112,6 +114,27 @@ def _coverage(sorted_ts_ns: np.ndarray, dt_median_s: float) -> float:
     return float(sorted_ts_ns.size / expected) if expected > 0 else float("nan")
 
 
+def _restrict_to_panel(
+    table: pa.Table, keys: tuple[str, ...], max_entities: int, seed: int
+) -> pa.Table:
+    """Filter ``table`` down to the fixed entity panel, in Arrow.
+
+    Only the distinct values of the first key column are hashed, so choosing
+    the panel costs nothing even on a partition of hundreds of millions of
+    rows. The first key is the physical entity everywhere it matters — ``node``
+    for IPMI and Ganglia, ``device`` for Vertiv, ``panel`` for Schneider — and
+    secondary keys such as Nagios's ``description`` enumerate checks within an
+    entity rather than entities themselves, so they are left intact.
+    """
+    primary = keys[0]
+    distinct = pc.unique(table[primary]).to_pylist()
+    if len(distinct) <= max_entities:
+        return table
+    panel = select_panel(distinct, max_entities, seed)
+    keep = pc.is_in(table[primary], value_set=pa.array(sorted(panel)))
+    return table.filter(keep)
+
+
 def _entity_codes(table: pa.Table, keys: tuple[str, ...]) -> tuple[np.ndarray, list[str]]:
     """Encode the entity tag columns as a single integer code per row.
 
@@ -157,9 +180,23 @@ def census_for_table(
     plugin: str,
     metric: str,
     year_month: str,
+    max_entities: int = 0,
+    seed: int = 0,
 ) -> pd.DataFrame:
-    """Describe every series inside one extracted partition."""
+    """Describe every series inside one extracted partition.
+
+    When ``max_entities`` is positive the partition is restricted to the fixed
+    entity panel (see :mod:`hsf.io.panel`). The filter is applied in Arrow,
+    before anything is materialised as numpy, which is where the saving is: a
+    234-million-row Ganglia partition drops to a few percent of its size before
+    the sort that dominates this function ever runs.
+    """
     keys = entity_columns(plugin, table.column_names)
+
+    if max_entities > 0 and keys:
+        table = _restrict_to_panel(table, keys, max_entities, seed)
+        if table.num_rows == 0:
+            return pd.DataFrame()
 
     n_rows = table.num_rows
     ts = (
