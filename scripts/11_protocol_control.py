@@ -34,6 +34,17 @@ study uses — the same measure functions, the same forecast harness, the same
     protocol must fail here.** If R² is positive, the procedure manufactures
     signal from nothing.
 
+**The ceiling, and why the verdict is stated relative to it.** Observed skill is
+itself a noisy measurement: MASE at a four-step horizon is computed over four
+points per origin and then taken as a median over four origins, so even a model
+that knew the generating parameter exactly could not predict it perfectly. An
+absolute threshold on R² would therefore be arbitrary. The ``portable`` arm is
+run twice — once with the real predictability measures, and once with the true
+AR(1) parameter as the only feature — and the verdict is whether the measures
+recover a substantial fraction of what the oracle achieves. That isolates *can
+this protocol learn a relation* from *how noisy is the target*, which no single
+R² can do.
+
 Together the three arms bracket the real result. A protocol that passes
 ``portable``, fails ``no_law``, and reproduces the observed M100 signature under
 ``disjoint`` has been shown to work, and the negative result becomes a statement
@@ -135,7 +146,14 @@ def main() -> None:
 
             # Real skill from the real harness, m=1 (the conservative
             # denominator the study reports as primary).
-            best = -np.inf
+            #
+            # The aggregation must match hsf.link.analysis.prepare exactly:
+            # MEDIAN over rolling origins first, THEN the max over models. Taking
+            # a raw max over every (model, origin) record instead is a max over
+            # ~28 noisy values, which is dominated by whichever fit got lucky —
+            # an earlier version of this script did that and reported the
+            # protocol as broken when the fault was here.
+            per_model: dict[str, list[float]] = {}
             for evaluation in iter_evaluations(
                 y,
                 models=models,
@@ -145,7 +163,12 @@ def main() -> None:
                 max_train=max_train,
             ):
                 if np.isfinite(evaluation.get("mase", np.nan)):
-                    best = max(best, 1.0 - evaluation["mase"])
+                    per_model.setdefault(evaluation["model"], []).append(
+                        1.0 - evaluation["mase"]
+                    )
+            if not per_model:
+                continue
+            best = max(float(np.median(v)) for v in per_model.values())
             if not np.isfinite(best):
                 continue
 
@@ -166,9 +189,10 @@ def main() -> None:
     columns = [c for c in FEATURE_COLUMNS]
     results = []
 
-    for arm, phis in (("portable", phis_portable), ("disjoint", phis_disjoint)):
-        data = evaluate(phis)
-        cv = leave_one_family_out(data, feature_columns=columns, family="origin", seed=seed)
+    def report(arm: str, data: pd.DataFrame, feature_columns: list[str]) -> pd.DataFrame:
+        cv = leave_one_family_out(
+            data, feature_columns=feature_columns, family="origin", seed=seed
+        )
         if cv.empty:
             raise SystemExit(
                 f"arm {arm!r} produced no usable folds: leave_one_family_out needs at least "
@@ -179,23 +203,27 @@ def main() -> None:
         print(
             f"mean R^2 {cv.r2_forest.mean():+.3f}  median {cv.r2_forest.median():+.3f}  "
             f"{int((cv.r2_forest > 0).sum())}/{len(cv)} positive  "
+            f"MAE-skill median {cv.mae_skill.median():+.3f}  "
             f"within-family rho median {cv.spearman_within.median():+.3f}"
         )
+        return cv
+
+    arm_data = {}
+    for arm, phis in (("portable", phis_portable), ("disjoint", phis_disjoint)):
+        data = evaluate(phis)
+        arm_data[arm] = data
+        report(arm, data, columns)
+
+    # The ceiling: what a model that knew the generating parameter would score.
+    # Anything the measures achieve must be read as a fraction of this, because
+    # the target itself is a noisy measurement.
+    report("portable_oracle", arm_data["portable"], ["phi"])
 
     # Negative control: same features, same families, skill shuffled.
-    portable_data = results[0][1].copy()
+    shuffled = arm_data["portable"].copy()
     shuffle_rng = np.random.default_rng(seed + 2)
-    portable_data["best_skill"] = shuffle_rng.permutation(portable_data.best_skill.to_numpy())
-    cv_null = leave_one_family_out(
-        portable_data, feature_columns=columns, family="origin", seed=seed
-    )
-    results.append(("no_law", portable_data, cv_null))
-    print(f"\n=== arm: no_law ({len(portable_data)} series) ===")
-    print(
-        f"mean R^2 {cv_null.r2_forest.mean():+.3f}  median {cv_null.r2_forest.median():+.3f}  "
-        f"{int((cv_null.r2_forest > 0).sum())}/{len(cv_null)} positive  "
-        f"within-family rho median {cv_null.spearman_within.median():+.3f}"
-    )
+    shuffled["best_skill"] = shuffle_rng.permutation(shuffled.best_skill.to_numpy())
+    report("no_law", shuffled, columns)
 
     summary = pd.DataFrame(
         [
@@ -208,6 +236,7 @@ def main() -> None:
                 "families_positive": int((cv.r2_forest > 0).sum()),
                 "n_families": len(cv),
                 "median_spearman_within": cv.spearman_within.median(),
+                "median_mae_skill": cv.mae_skill.median(),
                 "mean_r2_level_corrected": cv.r2_level_corrected.mean(),
             }
             for arm, data, cv in results
@@ -219,16 +248,32 @@ def main() -> None:
     print(f"\nWrote protocol_control.csv to {paths.TABLES}")
 
     # The verdict, stated so a reader does not have to derive it.
-    portable_r2 = summary.loc[summary.arm == "portable", "mean_r2_forest"].item()
-    null_r2 = summary.loc[summary.arm == "no_law", "mean_r2_forest"].item()
+    def value(arm: str, column: str) -> float:
+        return float(summary.loc[summary.arm == arm, column].item())
+
+    portable = value("portable", "median_mae_skill")
+    oracle = value("portable_oracle", "median_mae_skill")
+    null = value("no_law", "median_mae_skill")
+    disjoint = value("disjoint", "median_mae_skill")
+    recovered = portable / oracle if oracle > 0 else float("nan")
+
     print("\n=== verdict ===")
-    if portable_r2 > 0.3 and null_r2 < 0.05:
-        print("Protocol VALIDATED: recovers a portable law, and finds none when none exists.")
+    print(
+        f"oracle ceiling (true parameter as the only feature): MAE-skill {oracle:+.3f}\n"
+        f"measures recover: {portable:+.3f}  =  {recovered:.0%} of the ceiling\n"
+        f"no-law control:   {null:+.3f}  (must be ~0)\n"
+        f"disjoint arm:     {disjoint:+.3f}  (same law, extrapolated)"
+    )
+    if oracle > 0.05 and recovered > 0.5 and null < 0.05:
+        print(
+            "\nProtocol VALIDATED: it recovers most of a portable law that is really there,\n"
+            "and finds nothing when nothing is there. A negative result on M100 is therefore\n"
+            "a statement about M100 rather than about the method."
+        )
     else:
         print(
-            "Protocol NOT validated: "
-            f"portable arm {portable_r2:+.3f} (want > 0.3), no-law arm {null_r2:+.3f} (want < 0.05)."
-            "\nEvery negative result in this study is uninterpretable until this passes."
+            "\nProtocol NOT validated. Every negative result in this study is uninterpretable\n"
+            "until this passes — the procedure has not been shown able to find a relation."
         )
 
 

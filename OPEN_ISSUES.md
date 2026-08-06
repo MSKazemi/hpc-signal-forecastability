@@ -389,7 +389,7 @@ across ten white-noise realisations, the Welch estimate's spread is strictly sma
 `1 - spectral_entropy` is Ω and a second column would carry no information. The methods survey in
 `PREDICTABILITY_METHODS.md` originally proposed adding it and was wrong to.
 
-**Still open.** `dfa_alpha` remains unexplained. DFA-1 removes only a linear trend, so on a monotone
+**Still open (OI-14).** `dfa_alpha` remains unexplained. DFA-1 removes only a linear trend, so on a monotone
 counter or a job-driven ramp the exponent is dominated by the trend and means nothing, and the
 implementation reports no goodness-of-fit for the log-log regression that produces it — so a series
 where the scaling law simply does not hold is indistinguishable from one where it does. Report the
@@ -435,6 +435,66 @@ and the study must report them rather than a point estimate.
 expensive tiers to the subset while running the cheap tiers on all 1,419 series — the latter costs
 almost nothing and would let the linking analysis use the full sample for every model except the
 two largest.
+
+---
+
+## OI-15 — The headline used R², whose comparator is an oracle the model cannot have `BLOCKING`
+
+> **This is the reason the study reads as a null result, and it is a reporting defect rather than
+> a finding.** It supersedes the framing of the abstract, §5.4, and the conclusion.
+
+**The mechanism.** R² is `1 − SSE/SST`, and `SST` is the sum of squares about the mean of the
+**held-out** family. The implicit comparator is therefore a predictor that already knows what the
+unseen family's average skill is — which is precisely the quantity a model predicting a family it
+has never seen cannot know. "R² < 0" means *worse than that oracle*. It does **not** mean *no
+better than nothing*, and the paper has been reading it as the latter.
+
+**Consequence 1 — the denominator collapses on homogeneous families.** A family whose series nearly
+all have the same skill has almost no `SST`, so R² divides by something near zero. The `alarm_state`
+fold is the clearest case:
+
+| | |
+|---|---:|
+| within-family standard deviation of skill | 0.036 |
+| model mean absolute error | **0.036** |
+| family-blind baseline mean absolute error | **0.600** |
+| error reduction | **94%** |
+| **reported R²** | **−2.05** |
+
+The model predicts every held-out alarm series to within a thirtieth of the baseline's error, and
+R² records a catastrophe.
+
+**Consequence 2 — the honest baseline was already in the output and was never used as the
+criterion.** `link_cv.csv` has always carried `r2_baseline`, the score of the train-mean predictor
+on the same held-out series. It averages **−18.35** against the forest's **−0.19**. The model beats
+the best family-blind predictor by two orders of magnitude in exactly the folds the headline counts
+as failures.
+
+**What the corrected criterion shows.** Scoring the same folds by fractional reduction in mean
+absolute error against that train-mean predictor:
+
+| | |
+|---|---:|
+| families that beat the family-blind baseline | **13 of 15** |
+| median error reduction | **19%** |
+| the one genuine failure | `error_counter`, 85% *worse* than baseline |
+
+So predictability measures **do** transfer across signal families. They fail on exactly one
+nameable class — monotone counters, where a drift forecast is near-perfect and no measure
+anticipates it — and that localised failure is a more useful result than the global null the paper
+currently reports.
+
+**What must change.** The abstract, §5.4 and the conclusion currently assert that no portable
+relation exists. They must instead report: the relation transfers, quantified against a baseline a
+model could actually have; R² is reported alongside with its denominator problem stated; and the
+counter family is given its own paragraph as the one place transfer genuinely fails. `mae_skill`,
+`mae_baseline` and `skill_sd_test` are now first-class columns of `link_cv.csv`, and
+`tests/test_link.py` pins the `alarm_state` case so the defect cannot silently return.
+
+**Caveat that must travel with the claim.** MAE-skill and R² answer different questions and neither
+is wrong in itself. R² is the right statistic for a family with genuine internal spread, and it is
+retained. The error is having let a single statistic whose denominator degenerates on a third of
+the folds carry the paper's conclusion.
 
 ---
 

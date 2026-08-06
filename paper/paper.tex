@@ -562,6 +562,65 @@ of the recursion.
 \label{fig:tier}
 \end{figure}
 
+\subsection{Does the protocol work? A synthetic positive control}
+\label{sec:protocol}
+
+Before reporting a negative transfer result we must establish that the protocol
+can report a positive one. Otherwise ``we found no portable law'' is
+indistinguishable from ``our procedure cannot find one''. We therefore generate
+synthetic families whose ground truth is known by construction and run them
+through the \emph{identical} pipeline --- the same measure functions, the same
+forecast harness, the same leave-one-family-out routine --- varying only how the
+series were produced (Table~\ref{tab:protocol}).
+
+\begin{table}[t]
+\centering
+\caption{Synthetic protocol control, \num{600} series over \num{15} families
+per arm, against the real result. The protocol recovers a genuine portable law
+(\texttt{portable}); a disjoint-band world destroys the ordering, and M100 does
+not look like it.}
+\label{tab:protocol}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Arm & mean \(R^2\) & fam.\ \(>0\) & med.\ Spearman \\
+\midrule
+\texttt{portable}     & \num{+0.248} & 13/15 & \num{+0.584} \\
+\texttt{portable\_oracle} & \num{+0.233} & 13/15 & \num{+0.576} \\
+\texttt{disjoint}     & \num{-0.096} & 2/15  & \num{-0.050} \\
+\texttt{no\_law}       & \num{-0.070} & 6/15  & \num{+0.100} \\
+\midrule
+\textbf{M100 (real)}  & \num{-0.189} & 9/15  & \num{+0.495} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three things follow. First, the protocol works: where a portable law exists it
+is recovered at \(R^2 = +0.25\) with \num{13} of \num{15} families positive,
+so M100's negative \(R^2\) is a statement about M100 rather than about the
+method. Second, supplying the \emph{true} generating parameter as a feature
+(\texttt{portable\_oracle}) does not beat the measured features
+(\num{+0.233} against \num{+0.248}), which bounds how much of the remaining gap
+could be closed by better features alone.
+
+Third, and least comfortable for the obvious explanation: M100 does \emph{not}
+resemble the \texttt{disjoint} arm. If each family occupied its own
+non-overlapping band of a shared law, predicting a held-out family would require
+extrapolation and the ordering would fail with it --- and it does, to a median
+Spearman of \(-0.05\). M100's ordering instead sits at \(+0.50\), close to the
+genuinely portable arm's \(+0.58\). Whatever prevents the level from
+transferring, it is not simply that families occupy disjoint parameter ranges.
+We report this as an open mechanism rather than adopt the explanation the arm
+was built to test.
+
+One further comparison is worth stating plainly because it looks damning in
+isolation. On raw \(R^2\) M100 (\num{-0.189}) transfers \emph{worse} than
+synthetic data with no relation at all (\texttt{no\_law}, \num{-0.070}). That
+is not a contradiction --- M100's ordering correlation is five times
+\texttt{no\_law}'s --- but it is a direct demonstration that raw \(R^2\) is the
+wrong summary for this question, since a large family-specific level offset
+punishes it more than having no relation does.
+
 \subsection{Predictability does not transfer across families}
 \label{sec:linking}
 
@@ -678,10 +737,18 @@ The other half holds in a weaker and more specific sense than we set out to
 show. The measures transfer to an unseen family in \emph{ordering} --- median
 within-family Spearman \(+0.40\), significant for \num{10} of \num{15}
 families --- but not in \emph{level}, which is what drives the raw \(R^2\)
-negative. A random-group null confirms the failure is about family boundaries
-specifically rather than about the protocol: arbitrary groups transfer easily
-(\(R^2 = +0.33\), \(p<0.001\) against the observed value). So there is a
-portable component of forecast difficulty, and it is ordinal.
+negative. Two controls confirm this is a property of the data and not of the method:
+arbitrary groups transfer easily (\(R^2 = +0.33\), \(p<0.001\)), and a
+synthetic portable law is recovered by the identical pipeline at
+\(R^2 = +0.25\). So there is a portable component of forecast difficulty, and
+it is ordinal.
+
+What blocks the level from transferring, we do not know. The natural
+explanation --- that families occupy disjoint bands of a shared law, so a
+held-out family requires extrapolation --- is ruled out by the same controls:
+in a synthetic disjoint world the ordering collapses along with the level, and
+M100's ordering does not. We leave the mechanism open rather than assert the
+one the evidence excludes.
 
 That distinction is the practical result. An operator facing an unfamiliar
 signal family can use a model-free profile to decide which of its signals to

@@ -75,3 +75,38 @@ which costs it on searchability.
 Still **T3** (18) on raw total. But T1/T6 state the primary contribution and T3 does not, and the
 scoring weights searchability and appeal equally with accuracy, which flatters T3. Leaning T1 or a
 T1/T6 hybrid for the final round; decision deferred per the loop rules.
+
+## Round 03 candidates
+
+The protocol control changes what the paper's strongest claim is. It is no longer only "difficulty
+does not transfer" — it is "the ordering transfers, the level does not, and we have a positive
+control proving the method could have found either."
+
+**T7 — Ordering Without Magnitude: What Model-Free Measures Predict About HPC Telemetry
+Forecastability**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 5 | 5 | 3 | 5 | **18** |
+"Ordering without magnitude" is exact, short, and memorable. Searchability is the weak axis —
+nobody queries that phrase — but the subtitle carries the searchable terms.
+
+**T8 — A Positive Control for Predictability Transfer: Eight HPC Telemetry Families and Three
+Synthetic Worlds**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 4 | 5 | 3 | 4 | **16** |
+Foregrounds the methodological contribution, which is arguably the most reusable part. But it
+promises a methods paper and this is an empirical one.
+
+**T9 — Forecast Difficulty in HPC Telemetry Transfers in Rank but Not in Level**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 5 | 5 | 4 | 4 | **18** |
+Declarative, complete, and every content word is searchable ("forecast difficulty", "HPC
+telemetry", "transfer"). Slightly flat as prose, which is the only mark against it.
+
+## Running leader after round 03
+**T9 (18)** — ties T3 and T7 on total but wins on the axis that matters: it states the paper's
+actual finding in terms a reader would search for. T3 foregrounds a secondary result; T7 is more
+elegant but less findable. **T9 is the presumptive winner for the final round** unless a later
+round changes the headline again.
