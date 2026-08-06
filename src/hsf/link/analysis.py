@@ -459,7 +459,7 @@ def random_group_null(
             start += size
 
         scores = []
-        for group_id, size in enumerate(sizes):
+        for group_id, _size in enumerate(sizes):
             test_mask = labels == group_id
             if test_mask.sum() < 10 or (~test_mask).sum() < 30:
                 continue

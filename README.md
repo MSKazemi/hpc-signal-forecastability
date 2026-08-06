@@ -73,10 +73,18 @@ question admits that R² is the wrong summary here.
 (`monotone_fraction` = 1.00 for that family, 68% classified as unit-root) makes it *detectable*
 without making it *predictable* — it is the one place the relation does not hold.
 
-**And the mechanism for the level failure is open.** The obvious explanation — that held-out
-families occupy feature regions no training family covers — was tested and refuted twice: across
-the real folds Spearman(extrapolation distance, R²) is only −0.111, and in the synthetic control,
-genuine band-disjointness collapses within-family ordering to ρ = −0.05 where M100 holds at +0.52.
+**The mechanism for the level failure is extrapolation in feature space.** How far a held-out
+family sits outside the region the training families occupy predicts the size of its calibration
+error almost exactly — Pearson **+0.85** against the absolute level bias — while predicting its
+*ordering* not at all (Spearman **+0.01**). That asymmetry is the whole result: the measures keep
+ranking correctly in territory they have not seen, and lose only the offset.
+
+An earlier version of this section reported the mechanism as refuted, on the grounds that
+Spearman(extrapolation distance, R²) is only −0.111. That was the wrong test — R² mixes level and
+ordering together, so a variable that damages one and not the other is invisible to it. The
+synthetic control is consistent once the distinction is drawn: making the *generating parameter*
+disjoint destroys ordering too (ρ = −0.05), which is a stronger condition than the feature-space
+extrapolation M100 actually exhibits.
 
 **2. A general-purpose compressor beats every hand-designed entropy measure.**
 Cluster-robust over 261 metric clusters, 1,082 series:

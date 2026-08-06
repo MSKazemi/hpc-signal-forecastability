@@ -118,7 +118,7 @@ method, and a third shows why the choice of criterion decides the answer. The
 identical pipeline recovers a synthetic portable law at \(R^2=+0.25\), matching
 an oracle given the true generating parameter, and correctly finds nothing when
 skill is permuted. Running the real protocol with arbitrary groups of matched
-size transfers easily (median \(R^2\) \(+0.35\), every group positive,
+size transfers easily (median \(R^2\) \(+0.36\), every group positive,
 \(p<0.001\) over \num{100} draws), so the difficulty is specific to crossing
 family boundaries. Yet the raw \(R^2\) of the real data is \(-0.17\), which is
 \emph{worse} than the \(-0.07\) of the permuted arm containing no relation at
@@ -652,7 +652,20 @@ model-limited (9)   & 1.00--2.97 & 0.50--0.88 & 0.18--0.69 & 0.12--0.31 \\
 \end{tabular}
 \end{table}
 
-The families split into two regimes (Table~\ref{tab:ceiling};
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{ceiling_gap.pdf}
+\caption{Achieved next-symbol accuracy (persistence) against the estimated
+information ceiling, per family, on each series' own alphabet. Bar length is
+headroom. Four families sit at the limit --- their two markers coincide --- and
+the remainder leave between \num{0.02} and \num{0.31} of next-step accuracy
+unclaimed. Error counters fall marginally to the \emph{right} of their ceiling,
+which is the estimator's downward bias rather than a violated bound.}
+\label{fig:ceiling}
+\end{figure}
+
+The families split into two regimes (Figure~\ref{fig:ceiling},
+Table~\ref{tab:ceiling};
 \texttt{results/tables/ceiling\_gap.csv}). Error counters, system metadata,
 alarm states and setpoint registers carry \num{0.03}--\num{0.34} bits per step,
 and persistence already achieves \num{0.99} or better --- at or above the
@@ -798,7 +811,14 @@ states and setpoint registers at \num{0.996}.
 
 It is \emph{not} a bound on our skill metric, and we report that rather than
 let the framing imply otherwise. \num{77.5}\% of series achieve a skill above
-their own ``ceiling''. The two quantities answer different questions: Fano
+their own ``ceiling''. That figure should not be confused with the \num{18}\%
+of \S\ref{sec:ceiling}, which is a different and stricter test: there the
+comparison is like-for-like --- next-symbol accuracy against a ceiling on
+next-symbol accuracy, same alphabet, same series --- and the exceedance measures
+error in the \emph{estimator}, whereas the \num{77.5}\% here measures the
+mismatch between two \emph{quantities}. Both are real, and they have different
+remedies: the first shrinks with longer series, the second does not shrink at
+all. The two quantities answer different questions: Fano
 bounds next-\emph{bin} accuracy on a symbolised sequence, while skill is a
 scale-free error ratio on continuous values, and a signal that is easy to
 extrapolate but hard to bin exactly can exceed the first while doing well on the
@@ -897,9 +917,9 @@ family will be harder than which, but not how hard any of them will be.
 
 \emph{The failure is specific to family boundaries.} Running the identical
 protocol with \emph{random} groups of matched size gives a median \(R^2\) of
-\(+0.35\) across draws (2.5--97.5\% range \([0.22, 0.38]\), mean \(+0.32\))
+\(+0.36\) across draws (2.5--97.5\% range \([0.25, 0.41]\), mean \(+0.35\))
 with every group positive,
-against \(-0.19\) and \num{60}\% for the real families; over \num{100} draws
+against \(-0.17\) and \num{67}\% for the real families; over \num{100} draws
 no random grouping was as poor as the observed one (\(p<0.001\)). Arbitrary
 grouping therefore transfers easily, so the protocol is capable of transfer and
 the family axis carries real structure. Without this control the raw \(R^2\)
@@ -926,7 +946,7 @@ within-family Spearman      & \num{+0.450} & \num{+0.523} & 10/15 at \(p<0.05\) 
 raw \(R^2\)                 & \num{-0.167} & \num{+0.141} & 10/15 \\
 level-corrected \(R^2\)     & \num{-0.012} & \num{+0.154} & 11/15 \\
 \midrule
-random-group null (\(R^2\)) & \num{+0.319} & \num{+0.329} & 15/15 \\
+random-group null (\(R^2\)) & \num{+0.348} & \num{+0.367} & 15/15 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1057,12 +1077,23 @@ mean absolute error of \num{0.036} against a baseline of \num{0.600} and scores
 systematically understate transfer wherever groups are internally homogeneous,
 which in telemetry they very often are.
 
-What blocks the level from transferring, we do not know. The natural
-explanation --- that families occupy disjoint bands of a shared law, so a
-held-out family requires extrapolation --- is ruled out by the same controls:
-in a synthetic disjoint world the ordering collapses along with the level, and
-M100's ordering does not. We leave the mechanism open rather than assert the
-one the evidence excludes.
+What blocks the level from transferring is extrapolation in feature space, and
+the evidence for it is an asymmetry rather than a single correlation. How far a
+held-out family lies outside the region its training families occupy predicts
+the magnitude of that family's calibration error at Pearson \(+0.85\), while
+predicting its within-family ordering at Spearman \(+0.01\). A mechanism that
+damages the offset and leaves the ranking intact is exactly what the observed
+result is.
+
+This has to be stated carefully, because a coarser version of the same idea is
+excluded. Making the *generating parameter* disjoint across families, as the
+synthetic arm of \S\ref{sec:protocol} does, collapses the ordering along with
+the level; M100's ordering survives. Feature-space extrapolation and
+parameter-space disjointness are therefore not the same condition, and only the
+first is consistent with what we observe. Correlating extrapolation distance
+against \(R^2\) rather than against the level bias hides this entirely --- the
+correlation there is a negligible \(-0.11\), because \(R^2\) sums the two
+failures the mechanism separates.
 
 That distinction is the practical result. An operator facing an unfamiliar
 signal family can use a model-free profile to decide which of its signals to

@@ -192,6 +192,82 @@ def fig_sampling_irregularity(manifest: pd.DataFrame, out: Path) -> None:
     save(fig, out)
 
 
+def fig_ceiling_gap(features: pd.DataFrame, sample: pd.DataFrame, out: Path) -> None:
+    """Achieved next-symbol accuracy against the estimated information ceiling.
+
+    Job: two values per family plus the distance between them -> a dumbbell,
+    which encodes the gap as a length rather than asking the reader to subtract
+    two bar heights. Sorted by gap so the two regimes separate visually without
+    needing a colour key to carry the finding.
+
+    The reference line marks the estimator's measured bias: families inside it
+    cannot be distinguished from "at the ceiling", so the split is drawn where
+    the evidence actually supports one.
+    """
+    keys = ["plugin", "metric", "entity", "year_month"]
+    merged = features.merge(sample[[*keys, "origin"]], on=keys, how="left")
+    merged = merged.dropna(subset=["predictability_ceiling", "symbolic_persistence_accuracy"])
+
+    table = (
+        merged.groupby("origin")
+        .agg(
+            ceiling=("predictability_ceiling", "median"),
+            achieved=("symbolic_persistence_accuracy", "median"),
+            n=("predictability_ceiling", "size"),
+        )
+        .assign(headroom=lambda d: d.ceiling - d.achieved)
+        .sort_values("headroom")
+    )
+    emit(table.round(4), "ceiling_gap")
+
+    # Measured downward bias of the Lempel-Ziv ceiling estimate at these series
+    # lengths; below it, "at the limit" and "slightly above it" are the same
+    # claim and the figure must not imply otherwise.
+    bias = 0.01
+
+    fig, ax = plt.subplots(figsize=(5.4, 3.4))
+    y = np.arange(len(table))
+
+    for i, (_, row) in enumerate(table.iterrows()):
+        limited = row.headroom <= bias
+        ax.plot(
+            [row.achieved, row.ceiling], [i, i],
+            color=INK_MUTED if limited else CATEGORICAL[1],
+            linewidth=2.0, solid_capstyle="round", zorder=1,
+        )
+
+    ax.scatter(table.achieved, y, s=26, color=CATEGORICAL[0], zorder=3,
+               label="achieved (persistence)")
+    ax.scatter(table.ceiling, y, s=26, color=CATEGORICAL[5], zorder=3,
+               label="estimated ceiling")
+
+    for i, (_, row) in enumerate(table.iterrows()):
+        if row.headroom > bias:
+            ax.text(row.ceiling + 0.012, i, f"+{row.headroom:.2f}",
+                    va="center", fontsize=7, color=INK_PRIMARY)
+
+    ax.set_yticks(y)
+    ax.set_yticklabels([f"{f}  (n={int(n)})" for f, n in zip(table.index, table.n, strict=True)],
+                       fontsize=7.5)
+    ax.set_xlim(0.0, 1.12)
+    ax.set_xlabel("next-symbol accuracy on the series' own alphabet")
+    ax.grid(axis="y", visible=False)
+    ax.legend(loc="lower left", fontsize=7.5, frameon=False)
+    at_limit = int((table.headroom <= bias).sum())
+    ax.set_title(
+        f"{at_limit} of {len(table)} families sit at their information limit; "
+        "the rest have headroom",
+        loc="left", color=INK_PRIMARY,
+    )
+    ax.text(
+        0.0, -0.20,
+        "Grey = headroom within the estimator's measured bias (<=0.01), so indistinguishable "
+        "from the limit.",
+        transform=ax.transAxes, fontsize=7, color=INK_MUTED,
+    )
+    save(fig, out)
+
+
 def fig_predictability_landscape(features: pd.DataFrame, out: Path) -> None:
     """How much independent information permutation entropy carries.
 
@@ -344,8 +420,13 @@ def main() -> None:
         built += [args.out / "constant_share.pdf", args.out / "sampling_irregularity.pdf"]
 
     if paths.FEATURES.exists():
-        fig_predictability_landscape(pd.read_parquet(paths.FEATURES), args.out / "landscape.pdf")
+        features = pd.read_parquet(paths.FEATURES)
+        fig_predictability_landscape(features, args.out / "landscape.pdf")
         built.append(args.out / "landscape.pdf")
+        sample_path = paths.DERIVED / "sample.csv"
+        if "predictability_ceiling" in features.columns and sample_path.exists():
+            fig_ceiling_gap(features, pd.read_csv(sample_path), args.out / "ceiling_gap.pdf")
+            built.append(args.out / "ceiling_gap.pdf")
     else:
         print("  (features.parquet missing; skipping landscape)")
 

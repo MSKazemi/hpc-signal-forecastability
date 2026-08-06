@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+
 def test_extrapolation_distance_separates_interleaved_from_disjoint_folds():
     """The measure must tell "never seen this region" from "seen it, law fails".
 

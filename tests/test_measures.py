@@ -20,8 +20,8 @@ from hsf.features.measures import (
     compression_ratio,
     dfa_alpha,
     dominant_period_strength,
-    entropy_rate,
     drift_ratio,
+    entropy_rate,
     excess_kurtosis,
     flat_run_fraction,
     jump_fraction,
@@ -35,9 +35,9 @@ from hsf.features.measures import (
     reset_rate,
     sample_entropy,
     seasonal_strength,
+    spectral_entropy,
     stationarity_class,
     symbolic_persistence_accuracy,
-    spectral_entropy,
     variance_ratio,
 )
 

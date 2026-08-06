@@ -621,7 +621,9 @@ def stationarity_class(adf_p: float, kpss_p: float, alpha: float = 0.05) -> str:
     return "inconclusive"
 
 
-def changepoint_rate(x: np.ndarray, per: int = 1000, min_size: int = 10, max_splits: int = 40) -> float:
+def changepoint_rate(
+    x: np.ndarray, per: int = 1000, min_size: int = 10, max_splits: int = 40
+) -> float:
     """Mean-shift changepoints per ``per`` samples, by binary segmentation.
 
     Detected with a least-squares cost and a BIC-style penalty: a split is kept
