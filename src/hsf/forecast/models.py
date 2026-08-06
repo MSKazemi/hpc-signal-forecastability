@@ -385,6 +385,81 @@ class MLPLags:
         return np.array(out)
 
 
+class DirectGradientBoosted:
+    """Gradient-boosted trees fitted DIRECTLY for one horizon, not recursively.
+
+    Exists to settle a confound rather than to win. Every other learned model
+    here forecasts recursively — predict one step, append it, predict again —
+    so error compounds over multi-step horizons, and the observed collapse of
+    the machine-learning and neural tiers at long horizons could be that
+    compounding rather than anything about the signals.
+
+    A direct model has no such feedback: it is trained to map a lag window onto
+    the value *h* steps ahead, so a 24-hour forecast is a single prediction. If
+    the tiers still lose to persistence when forecast directly, recursion was
+    not the explanation.
+
+    The cost is one fitted model per horizon instead of one per series, which
+    is why this runs as a targeted control rather than as part of the ladder.
+    """
+
+    name = "gbt_direct"
+
+    def __init__(self, n_lags: int = 24, max_iter: int = 60, seed: int = 0):
+        self.n_lags, self.max_iter, self.seed = n_lags, max_iter, seed
+        self._horizon = 1
+
+    def set_horizon(self, horizon: int) -> DirectGradientBoosted:
+        self._horizon = horizon
+        return self
+
+    def fit(self, y: np.ndarray, seasonal_period: int) -> DirectGradientBoosted:
+        from sklearn.ensemble import HistGradientBoostingRegressor
+
+        finite = y[np.isfinite(y)]
+        p = min(self.n_lags, max(1, finite.size // 4))
+        self._p = p
+        h = self._horizon
+
+        # Need at least one training row: a window of p, then h steps ahead.
+        if finite.size <= p + h + 8 or np.ptp(finite) == 0:
+            self._model = None
+            self._fallback = float(finite[-1]) if finite.size else float("nan")
+            self._tail = finite[-p:] if finite.size >= p else finite
+            return self
+
+        windows = np.lib.stride_tricks.sliding_window_view(finite, p)
+        # Row i is the window ending at i+p-1; its target is h steps later.
+        design = windows[: -h or None]
+        target = finite[p + h - 1 :]
+        n = min(len(design), len(target))
+        design, target = design[:n], target[:n]
+
+        self._model = HistGradientBoostingRegressor(
+            max_iter=self.max_iter,
+            learning_rate=0.1,
+            early_stopping=False,
+            random_state=self.seed,
+        ).fit(design, target)
+        self._tail = finite[-p:]
+        return self
+
+    def predict(self, horizon: int) -> np.ndarray:
+        """Return a full path, but only the final point is a direct forecast.
+
+        The harness scores the mean absolute error over the whole window, so
+        the intermediate points must be filled. They are held at the last
+        observed value, which is the neutral choice; the comparison of interest
+        is at the horizon this model was fitted for.
+        """
+        if self._model is None:
+            return np.full(horizon, self._fallback)
+        point = float(self._model.predict(self._tail.reshape(1, -1))[0])
+        out = np.full(horizon, float(self._tail[-1]))
+        out[-1] = point
+        return out
+
+
 # ---------------------------------------------------------------------------
 # capacity ladder
 #

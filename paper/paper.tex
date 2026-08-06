@@ -418,12 +418,46 @@ neural tiers at every horizon tested). The ordering is not an artefact of
 pooling. At a 24-hour horizon even the best naive model is negative
 (\num{-0.153}), so the claim that no tier beats a same-step naive forecast holds
 at a day but not at three hours, where the per-series best naive model still
-scores \num{0.906}. Two qualifications are essential. The
-machine-learning and neural models forecast \emph{recursively}, so error
-compounds over multi-step horizons; part of the gap is that choice rather than
-the signals. And the ordering depends on the baseline: against a daily-seasonal
-denominator the statistical tier leads instead, and boosted trees overtake naive
-at the shortest horizon (\oi{5}).
+scores \num{0.906}. One qualification remains: the ordering depends on the baseline. Against a
+daily-seasonal denominator the statistical tier leads instead, and boosted trees
+overtake naive at the shortest horizon (\oi{5}).
+
+\subsection{Control: is this an artefact of recursive forecasting?}
+\label{sec:direct}
+
+Every learned model above forecasts recursively --- predict a step, append it,
+predict again --- so error compounds, and the collapse of the learned tiers at
+long horizons might be that compounding rather than anything about the signals.
+This is the most plausible alternative explanation for the result, so we test it
+rather than caveat it. We fit the same gradient-boosted learner two ways on the
+same series, origins and horizons: recursively, and \emph{directly}, trained to
+map a lag window onto the value \(h\) steps ahead in a single prediction.
+
+\begin{table}[t]
+\centering
+\caption{Median skill (\(1-\)MASE, same-step denominator) for the same learner
+forecast recursively and directly, against persistence, on \num{341} matched
+(series, origin) windows.}
+\label{tab:direct}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Horizon & Persistence & GBT recursive & GBT direct \\
+\midrule
+15\,min & \num{0.767} & \num{0.320} & \num{0.392} \\
+1\,h    & \num{0.499} & \num{-0.223} & \num{0.114} \\
+3\,h    & \num{-0.023} & \num{-1.029} & \num{-0.259} \\
+24\,h   & \num{-2.758} & \num{-3.692} & \num{-2.838} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Recursion does cost a great deal --- forecasting directly recovers between
+\num{0.07} and \num{0.85} of skill depending on horizon, most at one and three
+hours --- so the caveat was warranted. But the conclusion is unaffected: the
+direct model still loses to persistence at every horizon tested
+(Table~\ref{tab:direct}). The capacity result is a property of the problem, not
+of the recursion.
 
 \begin{figure}[t]
 \centering

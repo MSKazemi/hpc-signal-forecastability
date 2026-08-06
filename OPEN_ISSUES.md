@@ -192,6 +192,14 @@ model. No TCN, N-BEATS, PatchTST, or pretrained forecaster has been run. The pap
 say that skill saturates across the capacity ladder actually tested, and may not say that deep
 models cannot help.
 
+**One alternative explanation is now closed rather than caveated.** Every learned model forecasts
+recursively, so error compounds over multi-step horizons, and that — rather than the signals —
+could have produced the collapse of the learned tiers. `scripts/11_direct_control.py` fits the
+same gradient-boosted learner directly for each horizon on matched windows. Recursion does cost a
+great deal (at one hour, skill goes from −0.223 recursive to +0.114 direct), but the direct model
+still loses to persistence at every horizon, so the capacity conclusion does not rest on the
+recursion. Results in `results/tables/direct_vs_recursive.csv`.
+
 **To settle.** Run one genuine sequence model, and ideally one zero-shot pretrained forecaster as
 an upper reference point that costs no training. If skill saturates well before the largest model
 tried, capacity is not the binding constraint and the argument survives.
@@ -308,7 +316,18 @@ between-family comparison.
 
 ---
 
-## OI-12 — Skill is measured on a subset of the series predictability is measured on `IMPORTANT`
+## OI-12 — Skill was measured on a subset `RESOLVED`
+
+> **Closed. The premise was wrong.** The cap existed because the sweep appeared to need ~50 hours.
+> It did not: the cost was thread oversubscription, five worker processes each starting BLAS and
+> OpenMP pools sized to the core count on a 24-core machine. With pools pinned to one thread the
+> same sweep runs in minutes, the cap is removed, and skill is now measured on every sampled
+> series. Worth recording as a methodological lesson: a performance assumption silently shrank the
+> study's statistical power, and no output revealed it — the workers looked busy the whole time.
+
+---
+
+## OI-12b — Original wording: skill measured on a subset `SUPERSEDED`
 
 **Why it matters.** The linking analysis regresses forecast skill on predictability measures.
 Predictability is computed for all 1,419 sampled series, but skill for only **437** of them, so the

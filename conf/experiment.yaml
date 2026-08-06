@@ -154,14 +154,13 @@ forecast:
   # alongside, so it needs the full sample rather than a fifth of it (OI-5).
   robustness_fraction: 1.0
 
-  # Skill is measured on a SUBSET of the sampled series, while predictability is
-  # measured on all of them. Profiling the suite gave ~4.7 s per series per
-  # origin, dominated by the two largest models; over 1,419 series that is ~50
-  # hours, which the study cannot afford and does not need — the linking
-  # regression is limited by between-family variation, not by series count.
-  # The subset is chosen by hashing the series identity, so it is reproducible
-  # and independent of anything the data does. Recorded as OI-12.
-  max_series_per_stratum: 12
+  # Skill is measured on every sampled series. This was capped at 12 per stratum
+  # when the sweep appeared to need ~50 hours; that estimate was wrong. The cost
+  # was thread oversubscription — five worker processes each starting a BLAS and
+  # OpenMP pool sized to the core count — not the work. With worker pools pinned
+  # to one thread the full sample runs in minutes, so the cap is removed and the
+  # linking regression uses every series it can (closes OI-12).
+  max_series_per_stratum: null
   metric: "MASE"
   # Seasonal period for the MASE denominator, fixed a priori from each series'
   # own cadence — a day expressed in steps (OI-5). The non-seasonal m=1 check
