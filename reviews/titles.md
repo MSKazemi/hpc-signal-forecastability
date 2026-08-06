@@ -141,3 +141,36 @@ forecasting literature would actually use for the level failure. Strong on every
 **T12 (18)** overtakes T9. Both state the finding; T12 uses *calibrate*, which is the established
 term for exactly this failure and therefore more searchable and more precise than "level". T9
 remains the fallback if a plainer title is wanted.
+
+## Round 05 candidates
+
+The few-shot result completes the arc: rank for free, calibrate with ~20 labels. A title can now
+promise a procedure rather than only a finding.
+
+**T13 — Rank for Free, Calibrate with Twenty: Transferring Forecast-Difficulty Estimates Across HPC
+Telemetry Families**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 5 | 5 | 4 | 5 | **19** |
+States the finding *and* the actionable procedure. "Twenty" is concrete and memorable; the subtitle
+carries the searchable terms.
+
+**T14 — Model-Free Forecast-Difficulty Estimates Transfer Ordinally and Calibrate with Few Labels**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 5 | 5 | 4 | 3 | **17** |
+Most precise, least readable. "Transfer ordinally" is exact but stiff.
+
+**T15 — Which Signals Are Hard to Forecast? Ranking Transfers Across HPC Telemetry Families,
+Calibration Does Not**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 5 | 5 | 5 | 4 | **19** |
+Question opening is the most searchable form and echoes the original title. Names both halves of
+the finding. Slightly long.
+
+## Running leader after round 05
+**T13 and T15 tie at 19.** T13 leads on appeal and gives the reader the procedure; T15 leads on
+searchability and preserves continuity with the original question framing. **T13 is the
+presumptive winner** — the procedure is what a reader will remember and cite, and "calibrate with
+twenty" is the paper's most transferable sentence.

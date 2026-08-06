@@ -170,3 +170,45 @@ for this failure mode.
 ### Convergence note
 Third consecutive round where part of the finding was the manuscript lagging the tables. But round
 04 also produced a genuine reversal (C6), so the stop condition is **not** met. The loop continues.
+
+---
+
+## Round 05 — 2026-08-06
+
+**Snapshot:** `paper/versions/main-r05.tex` (14 pp. before, 16 after)
+**Review:** `reviews/round-05.md` · **Recommendation:** Accept with minor revision
+
+### Applied
+
+| ID | Change | Why |
+|---|---|---|
+| C7 | Added §5.5 **few-shot calibration** with Table 6 | The paper's own conclusion named this "the obvious next experiment and one this study does not run". It has now been run. Twenty labelled series from the held-out family move the mean R² from −0.212 to +0.061 and the share of families above zero from 60% to 72%. |
+| — | Tied the few-shot result to round 04's mechanism | This is confirmation, not restatement. Round 04 *inferred* extrapolation from a correlation; the few-shot result is a *prediction* it makes — that local labels help most where extrapolation is worst — and the prediction holds. Error counters −2.39 → −0.03, alarm states −2.41 → −1.15, while already-transferring families barely move (CPU +0.18 → +0.12). |
+| M11 | Made the MAE failure count precise | The rewritten abstract says "the single substantive failure is monotone error counters". Two families are below baseline: counters at −0.851 and thermal at −0.021. "Substantive" is honest, but a referee counting 13/15 will ask about the second, so both are now named. |
+
+### Verified, not changed
+The abstract was rewritten between rounds with a more positive framing and four new quantitative
+claims. **All four verify exactly**: Spearman positive 14/15, significant 9, max +0.829, beats the
+family-blind predictor in 13/15 by a median 19.2% error reduction. Left as written.
+
+### Deferred
+- **Mo10** `storage` (11 series) and `weather` (14) cannot supply k=20, so the high-k means are over
+  13 families rather than 15. Direction is unaffected — both were already near zero — and the table
+  reports aggregates without claiming all 15 are present. Recorded rather than papered over.
+- **Unchanged:** three references cite a version of record while a preprint was read; the AAAI PDF
+  for Borghesi et al. 2019 unobtainable. Needs institutional access.
+
+### Verification
+12/12 few-shot and abstract numbers verified against `few_shot.csv` and `link_cv.csv`. Paper builds
+at 16 pp., zero undefined references.
+
+### Titles
+T13–T15 added. **Leader is now T13** — "Rank for Free, Calibrate with Twenty: Transferring
+Forecast-Difficulty Estimates Across HPC Telemetry Families" — which states the finding and the
+procedure. T15 ties on score and is the fallback if a question-form title is preferred.
+
+### Convergence note
+The argument is now complete end to end: ordering transfers, level does not, extrapolation explains
+why, and ~20 local labels repair it. Rounds 01–04 each found either a stale number or a new
+experiment; round 05 found a new experiment. If round 06 finds neither, the loop stops and writes
+FINAL.md.

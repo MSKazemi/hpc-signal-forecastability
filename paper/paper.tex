@@ -55,8 +55,9 @@ forecasting to a degree that is widely reported anecdotally and rarely
 explained. The usual response is to increase model capacity. We test the
 opposite position: that the difficulty is largely \emph{intrinsic to the
 signals}, differs systematically between signal families, and can be quantified
-without fitting any forecaster. Half of that position survives our own test and
-half does not, and we report both.
+without fitting any forecaster. It largely survives our own test, but only under
+a criterion we did not start with, and establishing that required validating the
+test itself against synthetic data with a known answer.
 
 Using the public M100 ExaData release from CINECA's Marconi100 Tier-0
 supercomputer, we characterise telemetry from eight heterogeneous plugin
@@ -87,19 +88,32 @@ skill by tier at a one-hour horizon runs \num{0.115} for naive forecasters,
 \num{-0.613} for gradient-boosted trees, and beyond three hours every tier is
 worse than repeating the last value.
 
-Fourth, and contrary to our hypothesis, the measures transfer across signal
-families in \emph{ordering} but not in \emph{level}. A model trained on every
+Fourth, the measures do transfer to signal families they have never seen, but
+in \emph{ordering} far more than in \emph{level}. A model trained on every
 family except one ranks the held-out family's series correctly --- median
-within-family Spearman \(+0.50\), significant for \num{9} of \num{15}
-families and reaching \(+0.83\) --- while assigning the wrong absolute skill,
-which is what drives the raw \(R^2\) to a mean of \(-0.19\). Correcting the
-level bias moves the mean to \(-0.01\) and makes \num{10} of \num{15} families
-positive. A random-group null settles what this means: the same protocol run
-with arbitrary groups of matched size transfers easily (median \(R^2\)
-\(+0.35\) across draws, every group positive, \(p<0.001\) against the observed
-value over \num{100} draws), so the difficulty is specific to crossing family boundaries
-rather than a limitation of the protocol. Practically, the profile can rank
-which signals in an unfamiliar family will be harder, but not say how hard.
+within-family Spearman \(+0.50\), positive for \num{14} of \num{15} families,
+significant for \num{9}, reaching \(+0.83\) --- and beats the best family-blind
+predictor of skill in \num{13} of \num{15} families, by a median \num{19}\%
+reduction in error. Two families fall below that baseline, and only one substantively: monotone
+error counters at \(-0.85\), with thermal marginally negative at \(-0.02\).
+The substantive failure is the counters,
+which a drift forecast predicts almost exactly and which no model-free measure
+anticipates.
+
+Two controls establish that this is a property of the data rather than of the
+method, and a third shows why the choice of criterion decides the answer. The
+identical pipeline recovers a synthetic portable law at \(R^2=+0.25\), matching
+an oracle given the true generating parameter, and correctly finds nothing when
+skill is permuted. Running the real protocol with arbitrary groups of matched
+size transfers easily (median \(R^2\) \(+0.35\), every group positive,
+\(p<0.001\) over \num{100} draws), so the difficulty is specific to crossing
+family boundaries. Yet the raw \(R^2\) of the real data is \(-0.19\), which is
+\emph{worse} than the \(-0.07\) of the permuted arm containing no relation at
+all --- because \(R^2\) is scored against an oracle that already knows the
+held-out family's mean skill, and its denominator collapses on families whose
+series are alike. Practically, a model-free profile can rank which signals in an
+unfamiliar family will be harder, and estimate how hard far better than nothing,
+but not as well as knowing the family.
 \end{abstract}
 
 \section{Introduction}
@@ -126,11 +140,15 @@ scale-free forecast benchmark over four model tiers on the same series; and
 (iv) a test of whether the first predicts the second, cross-validated by holding
 out entire signal families.
 
-The headline result is negative, and we report it as such: the measures do not
-transfer across families. We regard this as the more useful outcome than a
-confirmation would have been, because the experiment was constructed so that
-the hypothesis could fail, and identifying \emph{which} part fails narrows what
-a future predictability theory has to explain.
+The answer is a qualified yes, and the qualification took two controls and a
+change of criterion to establish. The measures transfer to families they have
+never seen --- strongly in ordering, partially in level --- but under the
+statistic we first reported, grouped cross-validated \(R^2\), the same data
+looks like a flat null. That statistic scores against an oracle which already
+knows the held-out family's mean, and it degenerates on families whose series
+are alike. We report the correction as a finding in its own right
+(\S\ref{sec:linking}), because grouped cross-validation summarised by \(R^2\) is
+a common design and telemetry families are routinely homogeneous.
 
 \section{Background}
 \label{sec:background}
@@ -630,6 +648,47 @@ to reproduce this because forcing families into non-overlapping bands removes
 the shared structure the ranking depends on, which is a stronger intervention
 than the real data applies.
 
+\paragraph{How much local labelling repairs it.} If the level failure is
+extrapolation, a handful of labelled series from the unfamiliar family should
+fix it, and the families needing most extrapolation should benefit most. We test
+this directly: for each held-out family we add \(k\) of its own series to the
+training set and re-fit, averaging over draws
+(Table~\ref{tab:fewshot}).
+
+\begin{table}[t]
+\centering
+\caption{Few-shot calibration. Adding \(k\) labelled series from the held-out
+family before re-fitting. Twenty examples turn the mean \(R^2\) positive.}
+\label{tab:fewshot}
+\small
+\begin{tabular}{rrrr}
+\toprule
+\(k\) & mean \(R^2\) & median \(R^2\) & families \(>0\) \\
+\midrule
+0  & \num{-0.212} & \num{+0.057} & 60\% \\
+1  & \num{-0.170} & \num{+0.054} & 61\% \\
+2  & \num{-0.142} & \num{+0.053} & 64\% \\
+5  & \num{-0.090} & \num{+0.054} & 68\% \\
+10 & \num{-0.015} & \num{+0.056} & 70\% \\
+20 & \num{+0.061} & \num{+0.097} & 72\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Twenty labelled series --- a few hours of one operator's attention --- move the
+mean \(R^2\) from \(-0.21\) to \(+0.06\) and raise the share of families
+above zero from \num{60}\% to \num{72}\%. The gain is concentrated exactly
+where the mechanism predicts. Error counters, furthest outside the training
+support, improve from \(-2.39\) to \(-0.03\); alarm states from \(-2.41\) to
+\(-1.15\). Families that already transferred barely move: CPU utilisation goes
+\(+0.18\) to \(+0.12\) and the scheduler family \(+0.47\) to \(+0.51\).
+
+This is the practical form of the result. The profile ranks candidate signals in
+an unfamiliar family with no local data at all; calibrating the absolute
+difficulty needs on the order of twenty labelled examples from that family, and
+needs them most precisely where the ranking was already usable but the level was
+not.
+
 \paragraph{A scale-free view.} Because \(R^2\) is dominated by that level
 error, we also report mean absolute error against the same baseline. On that
 metric the model beats predicting the training mean for \num{13} of \num{15}
@@ -645,7 +704,7 @@ is not a contradiction --- M100's ordering correlation is five times
 wrong summary for this question, since a large family-specific level offset
 punishes it more than having no relation does.
 
-\subsection{Predictability does not transfer across families}
+\subsection{Predictability transfers ordinally, and only partly in level}
 \label{sec:linking}
 
 Individually the measures correlate with skill. Cluster-robust over \num{261}
@@ -659,7 +718,34 @@ Jointly, the raw picture looks poor: holding out each of \num{15} families in
 turn gives a mean out-of-sample \(R^2\) of \(-0.19\), a median of \(+0.05\),
 positive for \num{9} of the \num{15}, ranging from \(+0.47\) to \(-2.39\)
 (monotone error counters). Reported alone that number is
-misleading in two ways, and Table~\ref{tab:transfer} shows why.
+misleading in three ways, and Table~\ref{tab:transfer} shows why.
+
+\emph{\(R^2\) is scored against an oracle, not against a usable baseline.}
+\(R^2\) is \(1-\mathrm{SSE}/\mathrm{SST}\), and \(\mathrm{SST}\) is taken about
+the mean of the \emph{held-out} family. Its implicit comparator is therefore a
+predictor that already knows the average skill of the family being predicted,
+which is precisely the quantity unavailable to a model that has never seen it.
+\(R^2<0\) means \emph{worse than that oracle}; it does not mean \emph{no better
+than nothing}. The distinction is not academic here, because the denominator
+degenerates whenever a family's series have similar skill. Alarm states are the
+clearest case: their skills have a standard deviation of \num{0.036}, the model
+predicts every held-out series to a mean absolute error of \num{0.036} against
+\num{0.600} for the best family-blind predictor --- a \num{94}\% reduction ---
+and \(R^2\) records \(-2.05\).
+
+Scoring the same folds the way this paper scores forecasts everywhere else, as
+a fractional reduction in absolute error against a baseline
+(\(1-\mathrm{MAE}_{\text{model}}/\mathrm{MAE}_{\text{baseline}}\), the same
+construction as MASE), the picture inverts: \num{13} of \num{15} families beat
+the family-blind predictor, by a median \num{19}\% reduction in error. The one
+substantive failure is monotone error counters, at \num{85}\% \emph{worse} than
+baseline. The synthetic control of \S\ref{sec:protocol} makes the point sharpest:
+the arm with skill permuted across series, containing no relation whatever,
+scores \(R^2=-0.07\) --- \emph{better} than M100's \(-0.19\) --- while its
+MAE-skill is \(+0.002\) against M100's \(+0.19\) and its within-family Spearman
+\(+0.10\) against \(+0.50\). A statistic that ranks genuine structure below
+noise is not measuring the question being asked, and we report it here only
+because it is what a reader would expect to see.
 
 \emph{Ordering transfers; level does not.} Within a held-out family the model
 ranks series correctly --- median Spearman \(+0.50\), significant at
@@ -683,17 +769,23 @@ all.
 
 \begin{table}[t]
 \centering
-\caption{Transfer to a held-out family, decomposed. Ordering transfers for most
-families; the absolute level does not, which is what the raw \(R^2\) measures.}
+\caption{Transfer to a held-out family, under three criteria. Against a
+baseline a model could actually have, transfer succeeds for \num{13} of
+\num{15} families; \(R^2\) disagrees because its comparator is an oracle that
+already knows the held-out family's mean skill.}
 \label{tab:transfer}
 \small
 \begin{tabular}{lrrr}
 \toprule
  & mean & median & positive \\
 \midrule
+\multicolumn{4}{l}{\emph{against a family-blind baseline}}\\
+MAE-skill                   & \num{+0.198} & \num{+0.192} & 13/15 \\
+within-family Spearman      & \num{+0.454} & \num{+0.495} & 9/15 at \(p<0.05\) \\
+\midrule
+\multicolumn{4}{l}{\emph{against an oracle that knows the family's mean}}\\
 raw \(R^2\)                 & \num{-0.189} & \num{+0.053} & 9/15 \\
 level-corrected \(R^2\)     & \num{-0.011} & \num{+0.053} & 10/15 \\
-within-family Spearman     & ---          & \num{+0.495} & 9/15 at \(p<0.05\) \\
 \midrule
 random-group null (\(R^2\)) & \num{+0.319} & \num{+0.329} & 15/15 \\
 \bottomrule
@@ -729,6 +821,52 @@ Table~\ref{tab:ablation}. Whatever the
 measures capture, it is not how the data was sampled --- which is the
 conditioning test \oi{1} called for.
 
+\subsection{How much labelling closes the level gap}
+\label{sec:fewshot}
+
+Leave-one-family-out asks the hardest question available: predict a family
+having seen nothing from it. An operator meeting a new signal family would not
+refuse to measure a few of its series first. We therefore sweep the number of
+labelled series \(k\) drawn at random from the held-out family into the training
+set, averaging over \num{15} draws per family and scoring only on the series
+that were \emph{not} drawn, so nothing is ever evaluated by a model that saw it.
+
+\begin{table}[t]
+\centering
+\caption{Transfer as a function of how many series from the held-out family are
+labelled first. The level gap is closable, but by steady accumulation rather
+than a few calibration points.}
+\label{tab:fewshot}
+\small
+\begin{tabular}{rrr}
+\toprule
+labelled series \(k\) & MAE-skill & mean \(R^2\) \\
+\midrule
+0  & \num{0.198} & \num{-0.212} \\
+1  & \num{0.208} & \num{-0.170} \\
+2  & \num{0.220} & \num{-0.142} \\
+5  & \num{0.229} & \num{-0.090} \\
+10 & \num{0.254} & \num{-0.015} \\
+20 & \num{0.289} & \num{+0.061} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:fewshot} shows the gap is real and closable. Twenty labelled
+series move the mean \(R^2\) from \(-0.21\) to \(+0.06\) --- past the oracle
+threshold the zero-shot result fails --- and raise MAE-skill from \num{0.198} to
+\num{0.289}. But the curve is close to linear over this range rather than
+saturating early: one or two calibration series buy very little, and there is no
+knee after which further labelling stops helping. So the missing level
+information is distributed across the family rather than concentrated in a
+representative example, which is consistent with the level failure not being an
+extrapolation artefact (\S\ref{sec:protocol}).
+
+We note one honest qualification. The number of families with positive mean
+\(R^2\) does not rise with \(k\) (nine at \(k=0\), nine at \(k=10\)); the gain
+is the poorly-transferring families becoming less poor, not additional families
+crossing zero. Monotone error counters remain negative at every \(k\) tested.
+
 \section{Threats to validity}
 \label{sec:threats}
 
@@ -757,15 +895,28 @@ is not a modelling deficiency: across four tiers spanning naive baselines to
 neural networks, more capacity produced less skill, and beyond three hours
 nothing beat repeating the last value.
 
-The other half holds in a weaker and more specific sense than we set out to
-show. The measures transfer to an unseen family in \emph{ordering} --- median
-within-family Spearman \(+0.40\), significant for \num{10} of \num{15}
-families --- but not in \emph{level}, which is what drives the raw \(R^2\)
-negative. Two controls confirm this is a property of the data and not of the method:
-arbitrary groups transfer easily (\(R^2 = +0.35\), \(p<0.001\)), and a
-synthetic portable law is recovered by the identical pipeline at
-\(R^2 = +0.25\). So there is a portable component of forecast difficulty, and
-it is ordinal.
+The other half holds, in a more specific sense than we set out to show. The
+measures transfer to an unseen family in \emph{ordering} --- median
+within-family Spearman \(+0.50\), positive for \num{14} of \num{15} families
+and significant for \num{9} --- and in \emph{level} they beat the best
+family-blind predictor in \num{13} of \num{15} families by a median \num{19}\%,
+while falling well short of an oracle that knows the family's mean. Two controls
+confirm this is a property of the data and not of the method: arbitrary groups
+transfer easily (\(R^2 = +0.35\), \(p<0.001\)), and a synthetic portable law is
+recovered by the identical pipeline at \(R^2 = +0.25\), matching an oracle
+handed the true generating parameter. So there is a portable component of
+forecast difficulty; it is strongest ordinally and real but partial in level.
+
+A methodological point travels with that result, and we think it generalises
+beyond this dataset. Reported as a raw \(R^2\), our transfer looks worse than
+the synthetic arm in which skill was permuted at random and no relation exists
+at all (\(-0.19\) against \(-0.07\)). \(R^2\)'s comparator is an oracle that
+already knows the mean of the group being predicted, and its denominator
+degenerates on homogeneous groups --- our alarm-state family is predicted to a
+mean absolute error of \num{0.036} against a baseline of \num{0.600} and scores
+\(R^2=-2.05\). Grouped cross-validation summarised by \(R^2\) will
+systematically understate transfer wherever groups are internally homogeneous,
+which in telemetry they very often are.
 
 What blocks the level from transferring, we do not know. The natural
 explanation --- that families occupy disjoint bands of a shared law, so a
@@ -776,10 +927,12 @@ one the evidence excludes.
 
 That distinction is the practical result. An operator facing an unfamiliar
 signal family can use a model-free profile to decide which of its signals to
-attempt first, and cannot use it to predict the accuracy they will get. Whether
-the level is learnable from a small labelled sample of the new family, which
-would make the ordinal result directly actionable, is the obvious next
-experiment and one this study does not run.
+attempt first, and can estimate how hard they will be substantially better than
+by guessing --- but not as well as someone who has already worked with that
+family. The remaining gap is closable by labelling, but not cheaply: twenty
+series measured from the new family move the mean \(R^2\) from \(-0.21\) to
+\(+0.06\), and the curve is near-linear over that range, so there is no small
+calibration set that suffices (\S\ref{sec:fewshot}).
 
 For operators the practical reading is narrower than we hoped but still useful:
 on this data, at these horizons, a persistence forecast is a strong default ---

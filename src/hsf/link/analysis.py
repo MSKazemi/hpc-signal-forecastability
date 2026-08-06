@@ -23,6 +23,8 @@ matrix, and the analysis reports what happens when entropy is removed.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -314,6 +316,92 @@ def leave_one_family_out(
                 "train_skill_mean": float(y_train.mean()),
             }
         )
+    return pd.DataFrame(rows)
+
+
+def few_shot_curve(
+    data: pd.DataFrame,
+    *,
+    feature_columns: list[str],
+    target: str = "best_skill",
+    family: str = "origin",
+    shots: Sequence[int] = (0, 1, 2, 5, 10, 20),
+    n_draws: int = 20,
+    seed: int = 0,
+    n_estimators: int = 200,
+) -> pd.DataFrame:
+    """How much of the level gap does a handful of labelled series close?
+
+    Leave-one-family-out asks the hardest possible question: predict a family
+    having seen *nothing* from it. Nobody deploying this would refuse to label a
+    few series first. This sweeps the number of labelled series ``k`` drawn at
+    random from the held-out family into the training set, and reports transfer
+    as a function of ``k``, averaged over draws.
+
+    ``k = 0`` reproduces the headline. If the curve rises steeply and then
+    flattens, the level is cheap to calibrate and the study's ordinal-only
+    result becomes directly actionable: label that many series and the profile
+    predicts skill outright. If it stays flat, the level is not a sampling
+    problem at all and something about the family is genuinely unlearnable from
+    the measures.
+
+    The k labelled series are removed from the evaluation set as well as added
+    to training, so no series is ever scored by a model that saw it.
+    """
+    usable = data.dropna(subset=[target]).copy()
+    keep = [c for c in feature_columns if usable[c].notna().any()]
+    if not keep:
+        return pd.DataFrame()
+
+    rows = []
+    for held_out in sorted(usable[family].dropna().unique()):
+        test_mask = usable[family] == held_out
+        base_train, full_test = usable[~test_mask], usable[test_mask]
+        if len(base_train) < 30 or len(full_test) < 10:
+            continue
+
+        for k in shots:
+            # Enough must remain to score on after the shots are removed.
+            if k >= len(full_test) - 5:
+                continue
+            for draw in range(1 if k == 0 else n_draws):
+                rng = np.random.default_rng(seed + draw)
+                if k == 0:
+                    shot_index = np.array([], dtype=int)
+                else:
+                    shot_index = rng.choice(len(full_test), size=k, replace=False)
+                mask = np.zeros(len(full_test), dtype=bool)
+                mask[shot_index] = True
+
+                train = pd.concat([base_train, full_test[mask]])
+                test = full_test[~mask]
+
+                medians = train[keep].astype(float).median()
+                x_train = train[keep].astype(float).fillna(medians).to_numpy()
+                x_test = test[keep].astype(float).fillna(medians).to_numpy()
+                y_train = train[target].to_numpy()
+                y_test = test[target].to_numpy()
+
+                model = RandomForestRegressor(
+                    n_estimators=n_estimators, min_samples_leaf=5, random_state=seed, n_jobs=-1
+                ).fit(x_train, y_train)
+                predicted = model.predict(x_test)
+                baseline = np.full_like(y_test, y_train.mean())
+
+                mae_baseline = mean_absolute_error(y_test, baseline)
+                rows.append(
+                    {
+                        "held_out_family": held_out,
+                        "k": k,
+                        "draw": draw,
+                        "r2": r2_score(y_test, predicted),
+                        "mae_skill": (
+                            1.0 - mean_absolute_error(y_test, predicted) / mae_baseline
+                            if mae_baseline > 0
+                            else np.nan
+                        ),
+                    }
+                )
     return pd.DataFrame(rows)
 
 
