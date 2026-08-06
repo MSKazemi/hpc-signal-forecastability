@@ -17,6 +17,7 @@
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{graphicx}
+\graphicspath{{figures/}}
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
 \usepackage{natbib}
@@ -68,45 +69,81 @@ measure the forecast skill achieved by a tiered suite ranging from naive
 baselines to gradient-boosted trees under a strictly causal rolling-origin
 protocol.
 
-We report three findings. First, the monitoring infrastructure is itself
+We report four findings. First, the monitoring infrastructure is itself
 non-stationary: of \num{573} distinct (plugin, metric) pairs observed across the
 campaign, only \num{104} are present in every month, and those are exactly the
-out-of-band sensor set. Second, \needsresult{predictability landscape result}.
-Third, \needsresult{linking result: out-of-sample \(R^2\) under
-leave-one-family-out cross-validation}.
+out-of-band sensor set. Second, a large share of what is monitored carries no
+forecastable information at all --- the fraction of series that never change
+over a month ranges from \num{64.8}\% of alarm-state signals to \num{8.4}\% of
+out-of-band sensors --- so any benchmark that averages over such series reports
+the composition of its sample as much as the skill of its models. Third, model
+capacity does not help: measured against a same-step naive baseline, median
+skill by tier at a one-hour horizon runs \num{0.127} for naive forecasters,
+\num{-0.030} for statistical ones, \num{-0.259} for neural networks and
+\num{-0.500} for gradient-boosted trees, and beyond three hours every tier is
+worse than repeating the last value.
 
-\needsresult{Implications paragraph.}
+Fourth, and contrary to our hypothesis, the predictability measures do
+\emph{not} transfer across signal families. Individually they correlate with
+skill --- repetition fraction at \(r=+0.40\) (cluster-robust 95\% CI
+\([0.25, 0.53]\) over \num{156} metric clusters), permutation entropy at
+\(-0.35\) --- but a model trained on every family except one predicts the
+held-out family's skill with a mean \(R^2\) of \(-0.82\). It beats predicting
+the global mean (\(-6.00\)) yet remains worse than knowing only the held-out
+family's own average. We find no portable law of forecast difficulty. What the
+measures mostly capture is how often a signal holds still, which is closer to a
+restatement of forecastability than an explanation of it.
 \end{abstract}
 
 \section{Introduction}
 \label{sec:intro}
 
-\needsresult{To be written.} Framing points to develop:
+Operators of large computing facilities increasingly collect holistic telemetry,
+and increasingly want to \emph{predict} it rather than merely react to it:
+thermal headroom, power capping, and proactive maintenance are all forecasting
+problems. Reported accuracy on this class of signal is nonetheless poor relative
+to standard time-series benchmarks, and the literature generally treats that as
+a modelling deficiency to be fixed with a stronger model.
 
-\begin{itemize}
-  \item Operators increasingly collect holistic telemetry, and increasingly
-        want to \emph{predict} it --- for thermal safety, power capping, and
-        proactive maintenance --- not merely to detect anomalies after the fact.
-  \item Reported forecast accuracy on this class of signal is poor relative to
-        standard time-series benchmarks, and the literature treats this as a
-        modelling deficiency.
-  \item We invert the question: rather than asking which model does best, we
-        ask how much predictability is present at all, measured independently
-        of any model.
-  \item Contributions: (i) a quantitative census of signal heterogeneity in a
-        Tier-0 monitoring campaign, including the instability of the monitoring
-        system itself; (ii) a model-free predictability profile per signal
-        family; (iii) a causal, scale-free forecast benchmark on the same
-        series; (iv) a test of whether the first predicts the second, validated
-        by holding out entire signal families.
-\end{itemize}
+We invert the question. Instead of asking which model does best, we ask how much
+predictability is present at all, measured independently of any forecaster, and
+whether that measurement predicts the skill a forecaster subsequently achieves.
+If it does, ``HPC telemetry is hard to forecast'' becomes a quantity with named
+causes rather than folklore.
+
+Our contributions are: (i) a quantitative census of signal heterogeneity across
+a 31-month Tier-0 monitoring campaign, including the instability of the
+monitoring system itself; (ii) a model-free predictability profile for each of
+\num{1419} series drawn from nine plugin families; (iii) a strictly causal,
+scale-free forecast benchmark over four model tiers on the same series; and
+(iv) a test of whether the first predicts the second, cross-validated by holding
+out entire signal families.
+
+The headline result is negative, and we report it as such: the measures do not
+transfer across families. We regard this as the more useful outcome than a
+confirmation would have been, because the experiment was constructed so that
+the hypothesis could fail, and identifying \emph{which} part fails narrows what
+a future predictability theory has to explain.
 
 \section{Background}
 \label{sec:background}
 
 \subsection{Marconi100 and the ExaData campaign}
 
-\needsresult{Machine description and campaign scope.}
+Marconi100 was a Tier-0 system at CINECA comprising 980 IBM Power AC922 nodes,
+each with two 16-core POWER9 processors and four NVIDIA V100 accelerators. The
+ExaData campaign published holistic telemetry for the machine from March 2020 to
+September 2022, collected through the ExaMon framework and released as
+Hive-partitioned Parquet, one archive per month.
+
+We catalogue every partition of all 31 archives --- \num{10504} partitions
+holding roughly \num{55} billion rows --- and extract the subset the study
+requires. Because node-level series of one metric are highly redundant, and
+because nodes sharing a rack, inlet air and workload are not independent
+samples (\oi{9}), analysis runs on a fixed panel of \num{96} entities whose
+membership is a stable hash of the entity label. The hash sees only the label,
+so panel membership is identical across every metric and month and cross-metric
+comparisons land on the same physical machines.
 
 \subsection{The nine plugin families}
 \label{sec:families}
@@ -153,7 +190,14 @@ tracked as \oi{10}.
 \subsection{Campaign census}
 \label{sec:census-method}
 
-\needsresult{Describe the inventory and per-series census.}
+Tar members are read header-only, so cataloguing all 31 archives costs seconds
+and no disk. For each extracted partition we then compute a per-series census:
+one row per (plugin, metric, entity, month) recording sample count, observed
+cadence, cadence jitter, gap fraction, coverage, missingness, value range,
+distinct-value count and quantisation step. The census is deliberately
+descriptive --- it contains no predictability measure and no model --- so that
+a later finding of between-family differences cannot be an artefact of having
+looked first.
 
 \subsection{The entity panel}
 
@@ -173,7 +217,24 @@ cannot be a relabelling of the result it is meant to explain.
 
 \subsection{Model-free predictability measures}
 
-\needsresult{Table of measures and what each probes.}
+Each series receives a profile of measures grouped by the mechanism it probes:
+entropy and complexity (permutation entropy, spectral entropy, Lempel--Ziv);
+periodicity (dominant-period strength, daily seasonal strength); memory
+(autocorrelation at lag one and one day, detrended fluctuation exponent);
+stationarity (block-mean drift ratio, variance ratio); and shape (jump fraction,
+repetition fraction, longest flat run, excess kurtosis of differences). Each
+returns \texttt{nan} rather than raising on degenerate input, because constant
+series are the common case here rather than an edge case
+(\S\ref{sec:constant}). Implementations are validated against series whose
+answers are known by construction --- a ramp, a sine, white noise, a random walk
+--- in the accompanying test suite.
+
+No single measure suffices, and the reason is instructive. Permutation entropy
+assigns \num{0.000} both to monotone counters, which have some \num{17850}
+distinct values, and to alarm states, which have two: a monotone series has
+exactly one ordering pattern and a step function almost never changes. Both are
+easy to forecast, for opposite structural reasons, and entropy cannot
+distinguish them (\oi{11}).
 
 \subsection{Forecast protocol}
 
@@ -193,7 +254,17 @@ than assigned a spuriously large score.
 
 \subsection{Linking analysis}
 
-\needsresult{Describe leave-one-family-out CV, baseline, ablations.}
+Skill is regressed on the predictability profile, cross-validated by holding out
+an \emph{entire signal family}. A random split would let the model memorise
+family-specific quirks and report a flattering \(R^2\); a held-out family forces
+the relation to transfer to signal physics it has never seen, which is what a
+portable difficulty law would require. Every \(R^2\) is reported against a
+train-mean baseline, so ``the measures explain skill'' means better than knowing
+nothing rather than better than zero. Three ablations exist to attack the
+headline: dropping the instrument covariates, keeping only them, and removing
+the tie-biased entropy. Marginal correlations use a cluster bootstrap over
+metrics, because series of one metric across nodes are not independent
+(\oi{9}).
 
 \section{Results}
 \label{sec:results}
@@ -212,24 +283,77 @@ Any claim compared across months therefore confounds signal behaviour with
 changes to the instrument, and we restrict cross-month statements accordingly
 (\oi{2}).
 
-\needsresult{Figure: coverage over time.}
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{coverage.pdf}
+\caption{Metrics collected per plugin per month. Grey marks a plugin absent that
+month; the colour scale is logarithmic.}
+\label{fig:coverage}
+\end{figure}
 
-\subsection{Signal heterogeneity}
+\subsection{Much of what is monitored never changes}
+\label{sec:constant}
 
-\needsresult{Census results: cadence, cadence irregularity, coverage,
-quantisation, constant fraction, per family.}
+Across \num{159506} series the fraction constant over a whole month varies by
+more than a factor of seven between families: \num{64.8}\% for Nagios,
+\num{47.0}\% Schneider, \num{42.9}\% Logics and Ganglia, \num{33.1}\% Vertiv,
+against \num{10.5}\% SLURM, \num{8.4}\% IPMI and \num{0}\% Weather. MASE is
+undefined for such series --- the seasonal-naive denominator is zero --- and
+they are excluded from skill statistics and counted rather than silently
+dropped.
 
-\subsection{The predictability landscape}
+\subsection{Regularity and interruption are different properties}
+\label{sec:sampling}
 
-\needsresult{Feature distributions per family.}
+Sampling irregularity is routinely summarised by the coefficient of variation of
+the inter-sample interval. On this data that measure is misleading: it reports
+IPMI as the least regular family, contradicting the dataset documentation. IPMI
+in fact has \emph{zero} series with a jittery interval and \num{100}\% with a
+gap exceeding a hundred times the median --- its sampling is exact and
+universally interrupted, and the rare enormous gaps dominate the coefficient of
+variation. Ganglia is the only family whose interval genuinely wanders
+(\num{81}\% of series), which is what the documentation reports. We therefore
+measure jitter and interruption separately (\oi{1}).
 
-\subsection{Forecast skill}
+\subsection{Forecast skill and model capacity}
+\label{sec:skill}
 
-\needsresult{Skill by tier, horizon, and family; the saturation test.}
+Figure~\ref{fig:tier} shows median skill by tier and horizon on \num{331}
+series. Capacity does not buy skill: the naive tier leads at every horizon, the
+best single model throughout is persistence, and beyond three hours every tier
+is worse than repeating the last value. Two qualifications are essential. The
+machine-learning and neural models forecast \emph{recursively}, so error
+compounds over multi-step horizons; part of the gap is that choice rather than
+the signals. And the ordering depends on the baseline: against a daily-seasonal
+denominator the statistical tier leads instead, and boosted trees overtake naive
+at the shortest horizon (\oi{5}).
 
-\subsection{Does predictability explain skill?}
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{skill_by_tier.pdf}
+\caption{Median skill by model tier. Zero is a same-step naive forecast.}
+\label{fig:tier}
+\end{figure}
 
-\needsresult{Leave-one-family-out \(R^2\), importances, ablations.}
+\subsection{Predictability does not transfer across families}
+\label{sec:linking}
+
+Individually the measures correlate with skill. Cluster-robust over \num{156}
+metric clusters, repetition fraction reaches \(r=+0.40\) (95\% CI
+\([0.25,0.53]\)), permutation entropy \(-0.35\), daily seasonal strength
+\(-0.24\) and excess kurtosis \(+0.23\).
+
+Jointly they do not generalise. Holding out an entire family gives a mean
+out-of-sample \(R^2\) of \(-0.82\) for a random forest and \(-2.36\) for
+ridge, against \(-6.00\) for predicting the global mean. Beating that baseline
+shows the measures carry information; the negative sign shows it is not enough
+to beat the held-out family's own average.
+
+The result is not an artefact of instrumentation. Removing the sampling and
+quantisation covariates slightly \emph{improves} the model (\(-0.79\) against
+\(-0.82\)), and using them alone collapses it (\(-8.03\)). Whatever the
+measures capture, it is not how the data was sampled --- which is the
+conditioning test \oi{1} called for.
 
 \section{Threats to validity}
 \label{sec:threats}
@@ -252,7 +376,23 @@ cited from the text above. The load-bearing ones are:
 \end{description}
 
 \section{Conclusion}
-\needsresult{To be written.}
+
+We set out to show that the difficulty of forecasting HPC telemetry is an
+intrinsic, measurable property of the signals. Half of that survives. Difficulty
+is not a modelling deficiency: across four tiers spanning naive baselines to
+neural networks, more capacity produced less skill, and beyond three hours
+nothing beat repeating the last value.
+
+The other half does not. Measures that correlate with skill within the pooled
+data fail to predict it for a family they have not seen, with a mean held-out
+\(R^2\) of \(-0.82\). Forecast difficulty here is a property of particular
+signals rather than a portable law, and the measure that carries most of the
+signal --- how often a series holds still --- is closer to a restatement than an
+explanation.
+
+For operators the practical reading is narrower than we hoped but still useful:
+on this data, at these horizons, a persistence forecast is a strong default, and
+the burden of proof lies with any claim that a heavier model improves on it.
 
 \section*{Data and code availability}
 

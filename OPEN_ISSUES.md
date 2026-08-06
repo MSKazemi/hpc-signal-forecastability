@@ -12,12 +12,13 @@ discovered after seeing an inconvenient number.
 
 ---
 
-## OI-1 — Ganglia's irregular sampling confounds predictability with instrumentation `IMPORTANT`
+## OI-1 — Ganglia's irregular sampling confounds predictability with instrumentation `RESOLVED`
 
-> **Downgraded from BLOCKING.** The measurement problem underneath it is resolved: sampling
-> irregularity has been separated into two dissociated phenomena and both are now covariates. What
-> remains open is the *conditioning test* — whether Ganglia's family effect survives once they are
-> controlled for — which cannot be run until the forecast sweep finishes.
+> **Both halves now settled.** The measurement problem was resolved by separating jitter from
+> interruption (below). The conditioning test has now run: removing the sampling and quantisation
+> covariates *improves* the linking model slightly (\(-0.79\) against \(-0.82\)), and using them
+> alone collapses it (\(-8.03\)). Whatever the predictability measures capture, it is not how the
+> data was sampled. The between-family differences are not an instrumentation artefact.
 
 **Resolved: "irregular sampling" was two different things.** Measured across all 159,506 series:
 
@@ -125,7 +126,33 @@ predictability profile against the native one on the same series.
 
 ---
 
-## OI-5 — The MASE denominator requires a defensible seasonal period `IMPORTANT`
+## OI-5 — The MASE denominator changes which models appear to win `IMPORTANT`
+
+> **Measured, and larger than anticipated.** This was filed as a routine "pick a defensible
+> seasonal period" concern. It turned out to determine the paper's headline.
+
+Against a **daily-seasonal** denominator (m=96 on a 15-minute grid) median skill at a one-hour
+horizon is \(+0.769\); against a **same-step** denominator it is \(-0.235\). The daily
+denominator compares a one-hour-ahead forecast against a one-day-lag baseline, which is not
+like-for-like and flatters every model at short horizons. At a 24-hour horizon the two give
+\(+0.233\) and \(-4.154\).
+
+It also reverses the ranking the paper reports. Same-step: naive leads at every horizon
+(0.477 / 0.127 / −0.513 / −3.241). Daily-seasonal: the statistical tier leads
+(0.892 / 0.838 / 0.755 / 0.303) and boosted trees overtake naive at the shortest horizon. A first
+draft of the results reported a median best skill of 0.949 on the daily denominator alone, which
+would have claimed near-perfect forecasting.
+
+**Resolved by:** running both denominators on all 331 series and reporting the conservative one as
+primary, with the other shown alongside. The figure code filters to one denominator explicitly,
+because an earlier version pooled them and the pooled table inverted the tier ordering.
+
+**Still open:** the seasonal period is fixed at one day from the cadence rather than estimated per
+family. A family with no daily cycle is scaled by a baseline that means little for it.
+
+---
+
+## OI-5b — Original wording: a defensible seasonal period `RESOLVED`
 
 **Why it matters.** Skill is reported as `1 − MASE` against a seasonal naive baseline. MASE's
 scaling term depends on the assumed seasonal period *m*. A daily period is defensible for
