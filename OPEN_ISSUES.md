@@ -44,38 +44,26 @@ variation entirely, giving `dt_cv` = 12.7 for a signal whose sampling is otherwi
 
 
 
-**Why it matters.** The central claim is that predictability differs by *signal physics*. Ganglia
-is the plugin with the most diverse physics (CPU, memory, network, GPU/DCGM), and it is also the
-one whose own documentation warns: *"the sampling period of the metrics has high variability,
-patterns are different across nodes. The reported values are an approximation."* If Ganglia scores
-as unpredictable, we cannot yet distinguish "this signal is intrinsically hard" from "this signal
-was sampled badly".
+**Historical note — the trap that produced this entry.** The first attempt measured irregularity
+as the coefficient of variation of the inter-sample interval, `dt_cv`, over every interval. That
+reported IPMI as the *least* regular plugin, contradicting the dataset documentation, because a
+single multi-day outage in a month of 20-second samples dominates the statistic. `dt_cv` was an
+outage detector wearing a jitter label. Left unnoticed it would have put a claim in the paper that
+contradicted the dataset's own documentation on the strength of an artefact.
 
-**A trap found while measuring this.** The first attempt used the coefficient of variation of the
-inter-sample interval, `dt_cv`, computed over every interval. That measure reported **IPMI** as
-the least regular plugin — the opposite of what the documentation says. The cause is that one
-multi-day outage in a month of 20-second samples dominates the statistic: `dt_cv` is an outage
-detector wearing a jitter label. Had it gone unnoticed, the paper would have contradicted the
-dataset's own documentation on the strength of an artefact.
-
-The census now records three distinct quantities, because they are three distinct problems for a
-forecaster: `dt_jitter`, the interquartile spread of the interval relative to its median, which is
-insensitive to a handful of long gaps; `gap_frac`, the share of intervals exceeding ten times the
-median; and `coverage`, the share of expected samples present. A signal can be finely jittered,
-coarsely interrupted, or both.
-
-**To settle.** Include all three as *first-class covariates* in the linking regression, then test
-whether Ganglia's family effect survives conditioning on them. Additionally, resample a matched
-IPMI signal onto Ganglia's observed Δt pattern and measure how much predictability is destroyed —
-this gives a direct, quantitative instrumentation penalty.
-
-**Fallback.** Report Ganglia results conditioned on sampling regularity, and state the
-instrumentation penalty as a separate measured quantity rather than folding it into "signal
-physics".
+**Still worth doing.** Resample a matched IPMI signal onto Ganglia's observed interval pattern and
+measure how much predictability is destroyed. That would give a direct instrumentation penalty
+rather than the indirect ablation evidence used here.
 
 ---
 
-## OI-2 — The monitoring infrastructure is itself non-stationary `BLOCKING`
+## OI-2 — The monitoring infrastructure is itself non-stationary `IMPORTANT`
+
+> **Downgraded from BLOCKING.** It was blocking for *cross-month* claims. The study as reported
+> makes none: every result pools months and is stated per signal family, and the coverage
+> instability is reported as a finding in its own right rather than used as a covariate. It
+> returns to blocking the moment a claim of the form "metric X became less predictable in 2022"
+> is made.
 
 **Why it matters.** Structural inspection of the monthly archives shows plugin coverage changing
 over the campaign:
@@ -112,7 +100,27 @@ sampling is not adversarial for the other plugins.
 
 ---
 
-## OI-4 — Aggregated and native-cadence arms measure different objects `IMPORTANT`
+## OI-4 — The study analyses the aggregated representation, not the raw sensor stream `IMPORTANT`
+
+> **Escalated from a two-arm comparison to a single stated scope.** The plan was to run both a
+> native-cadence and an aggregated arm and report them separately. The native arm is not runnable:
+> at native cadence the gaps fragment every family beyond use. A Ganglia month has 43,199 grid
+> slots and a longest gap-free run of **149** samples; Logics manages **59** of 37,099. Nothing can
+> be forecast at a 96-step horizon on runs that short, and imputing across the gaps would invent
+> the structure being measured.
+>
+> Everything therefore runs on a common 15-minute grid, where empty slots fall from ~12% to under
+> 1% and gap-free runs reach 500–3,000 points across every plugin. This is also the aggregation the
+> ExaData authors chose for their own published anomaly-detection dataset.
+>
+> **What it costs, and it is not small.** Aggregation is a low-pass filter and raises apparent
+> predictability. Every skill number here describes 15-minute aggregates. The paper says so in the
+> abstract rather than in a limitations paragraph, because a reader who assumes these are
+> 20-second-sensor results would draw the wrong operational conclusion.
+
+---
+
+## OI-4b — Original wording: the two arms measure different objects `SUPERSEDED`
 
 **Why it matters.** The ready-made `time_aggregated` dataset is 15-minute resampled with
 `_avg/_std/_min/_max` per metric. Aggregation is a low-pass filter: it *raises* apparent
@@ -193,7 +201,16 @@ which spans four architecture families and roughly two orders of magnitude of pa
 
 ---
 
-## OI-7 — The irreducible-error floor is an estimate, not a bound `IMPORTANT`
+## OI-7 — The irreducible-error floor was never computed `OPEN`
+
+> **Not attempted.** The planned error-floor decomposition — a k-nearest-neighbour analog bound
+> plus the quantisation step — was not implemented, so the paper makes no claim about how much of
+> the observed error is irreducible. Nothing in the results depends on it. Recorded here so the
+> gap is visible rather than inferred from its absence.
+
+---
+
+## OI-7b — Original wording: the floor is an estimate, not a bound `DEFERRED`
 
 **Why it matters.** The error-floor argument uses a quantisation step plus a k-nearest-neighbour
 analog predictor as a proxy for the achievable minimum. Neither is a true information-theoretic
@@ -321,7 +338,13 @@ two largest.
 
 ---
 
-## OI-10 — Related-work claims are not yet verified against source PDFs `OPEN`
+## OI-10 — Related-work claims are not verified against source PDFs `BLOCKING`
+
+> **The only remaining submission blocker.** The literature harvest returned 1,985 works and
+> `paper/refs.bib` carries correct metadata from Crossref and OpenAlex, but correct metadata is not
+> a checked claim. No cited paper has been read. The related-work section in `paper/paper.tex` is
+> therefore still a marked placeholder rather than prose written from titles and abstracts — which
+> would be exactly the kind of unverified assertion this study spent its effort avoiding elsewhere.
 
 No literature has been harvested yet. Every claim about prior work must be checked against the
 actual paper before it enters the manuscript; none has been. This item stays open until the
