@@ -697,6 +697,17 @@ observed at a fixed resolution. It \emph{explains} \S\ref{sec:skill} rather than
 sitting in tension with it: no heavier tier beats persistence because, for
 signals of this kind, very little is available to beat it with.
 
+\textbf{The ordinal use survives, and the same control establishes it.} A
+measure can be useless as a level and sound as a ranking, and that is the case
+here: across the calibration the ceiling's error varies by only \num{0.067}
+while the Bayes optimum it tracks varies by \num{0.441}, so the error is close
+to a constant offset. Rank agreement with the unbeatable optimum is exact
+(Spearman \(+1.00\)), and on the real families the ceiling ranks against
+achieved accuracy at \(+0.97\). This is why we continue to report it as the
+study's strongest single ordinal predictor of difficulty while declining to
+read any level from it --- the distinction is not a hedge, it is what the
+calibration shows.
+
 What survives about the four low-entropy families is independent of all this.
 They achieve \num{0.99} or better in absolute terms, and no estimator error can
 create room above \num{1.0}. Those families are genuinely exhausted by
@@ -716,21 +727,24 @@ series were produced (Table~\ref{tab:protocol}).
 \begin{table}[t]
 \centering
 \caption{Synthetic protocol control, \num{600} series over \num{15} families
-per arm, against the real result. The protocol recovers a genuine portable law
+per arm, against the real result (\num{1072} held-out series over the same
+\num{15} families). The protocol recovers a genuine portable law
 (\texttt{portable}); a disjoint-band world destroys the ordering, and M100 does
-not look like it.}
+not look like it. Every row, the real one included, is produced by the same
+expressions in \texttt{12\_protocol\_control.py} and written to
+\texttt{protocol\_control.csv}.}
 \label{tab:protocol}
 \small
 \begin{tabular}{lrrr}
 \toprule
 Arm & mean \(R^2\) & fam.\ \(>0\) & med.\ Spearman \\
 \midrule
-\texttt{portable}     & \num{+0.248} & 13/15 & \num{+0.584} \\
+\texttt{portable}     & \num{+0.249} & 13/15 & \num{+0.580} \\
 \texttt{portable\_oracle} & \num{+0.233} & 13/15 & \num{+0.576} \\
-\texttt{disjoint}     & \num{-0.096} & 2/15  & \num{-0.050} \\
-\texttt{no\_law}       & \num{-0.070} & 6/15  & \num{+0.100} \\
+\texttt{disjoint}     & \num{-0.094} & 2/15  & \num{-0.035} \\
+\texttt{no\_law}       & \num{-0.069} & 7/15  & \num{+0.156} \\
 \midrule
-\textbf{M100 (real)}  & \num{-0.189} & 9/15  & \num{+0.495} \\
+\textbf{M100 (real)}  & \num{-0.167} & 10/15 & \num{+0.523} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -740,14 +754,14 @@ is recovered at \(R^2 = +0.25\) with \num{13} of \num{15} families positive,
 so M100's negative \(R^2\) is a statement about M100 rather than about the
 method. Second, supplying the \emph{true} generating parameter as a feature
 (\texttt{portable\_oracle}) does not beat the measured features
-(\num{+0.233} against \num{+0.248}), which bounds how much of the remaining gap
+(\num{+0.233} against \num{+0.249}), which bounds how much of the remaining gap
 could be closed by better features alone.
 
 Third, and least comfortable for the obvious explanation: M100 does \emph{not}
 resemble the \texttt{disjoint} arm. If each family occupied its own
 non-overlapping band of a shared law, predicting a held-out family would require
 extrapolation and the ordering would fail with it --- and it does, to a median
-Spearman of \(-0.05\). M100's ordering instead sits at \(+0.50\), close to the
+Spearman of \(-0.03\). M100's ordering instead sits at \(+0.52\), close to the
 genuinely portable arm's \(+0.58\). Whatever prevents the level from
 transferring, it is not simply that families occupy disjoint parameter ranges.
 We report this as an open mechanism rather than adopt the explanation the arm
@@ -757,8 +771,12 @@ was built to test.
 out the crudest version of the extrapolation story, but not the idea itself. For
 each held-out family we measure how far its feature distribution sits outside
 the training families' support. That distance predicts the level error strongly
-(\(r=+0.78\) against the absolute level bias) and the raw \(R^2\) nearly as
-strongly (\(-0.66\)), while barely touching the ordering (\(-0.22\)). Error
+(Pearson \(r=+0.85\), \(p<0.001\), \(n=15\) families, against the absolute
+level bias) and the raw \(R^2\) less strongly (\(-0.60\), \(p=0.019\)),
+while its association with the ordering is weaker still and not significant
+(\(-0.40\), \(p=0.14\)). On ranks, which one degenerate family cannot drive,
+the contrast is starker: Spearman \(+0.48\) with the level error against
+\(+0.01\) with the ordering. Error
 counters sit furthest outside the training support of any family and are also
 the worst transfer case on every metric.
 
@@ -776,33 +794,15 @@ this directly: for each held-out family we add \(k\) of its own series to the
 training set and re-fit, averaging over draws
 (Table~\ref{tab:fewshot}).
 
-\begin{table}[t]
-\centering
-\caption{Few-shot calibration. Adding \(k\) labelled series from the held-out
-family before re-fitting. Twenty examples turn the mean \(R^2\) positive.}
-\label{tab:fewshot}
-\small
-\begin{tabular}{rrrr}
-\toprule
-\(k\) & mean \(R^2\) & median \(R^2\) & families \(>0\) \\
-\midrule
-0  & \num{-0.212} & \num{+0.057} & 60\% \\
-1  & \num{-0.170} & \num{+0.054} & 61\% \\
-2  & \num{-0.142} & \num{+0.053} & 64\% \\
-5  & \num{-0.090} & \num{+0.054} & 68\% \\
-10 & \num{-0.015} & \num{+0.056} & 70\% \\
-20 & \num{+0.061} & \num{+0.097} & 72\% \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Twenty labelled series --- a few hours of one operator's attention --- move the
-mean \(R^2\) from \(-0.21\) to \(+0.06\) and raise the share of families
-above zero from \num{60}\% to \num{72}\%. The gain is concentrated exactly
-where the mechanism predicts. Error counters, furthest outside the training
-support, improve from \(-2.39\) to \(-0.03\); alarm states from \(-2.41\) to
-\(-1.15\). Families that already transferred barely move: CPU utilisation goes
-\(+0.18\) to \(+0.12\) and the scheduler family \(+0.47\) to \(+0.51\).
+Twenty labelled series --- a few hours of one operator's attention --- move
+the mean \(R^2\) from \(-0.21\) to \(+0.06\) (\S\ref{sec:fewshot}), and the
+gain is concentrated exactly where the mechanism predicts. Error counters,
+furthest outside the training support, improve from \(-2.39\) to \(-0.14\);
+alarm states from \(-2.41\) to \(-0.74\). Families that already transferred
+barely move, in either direction: CPU utilisation goes \(+0.18\) to \(+0.20\)
+and the scheduler family \(+0.47\) to \(+0.50\). What does \emph{not} happen is
+additional families crossing zero, which is why the count of positive families
+is flat in \(k\) while the mean improves.
 
 This is the practical form of the result. The profile ranks candidate signals in
 an unfamiliar family with no local data at all; calibrating the absolute
@@ -850,12 +850,12 @@ information theory rather than fitted to anything.
 \paragraph{A scale-free view.} Because \(R^2\) is dominated by that level
 error, we also report mean absolute error against the same baseline. On that
 metric the model beats predicting the training mean for \num{13} of \num{15}
-families (mean skill \num{+0.20}), against \num{9} of \num{15} on \(R^2\).
+families (mean skill \num{+0.22}), against \num{10} of \num{15} on \(R^2\).
 Both are correct; they answer different questions, and a reader should not take
 either alone as the summary.
 
 One further comparison is worth stating plainly because it looks damning in
-isolation. On raw \(R^2\) M100 (\num{-0.189}) transfers \emph{worse} than
+isolation. On raw \(R^2\) M100 (\num{-0.167}) transfers \emph{worse} than
 synthetic data with no relation at all (\texttt{no\_law}, \num{-0.070}). That
 is not a contradiction --- M100's ordering correlation is five times
 \texttt{no\_law}'s --- but it is a direct demonstration that raw \(R^2\) is the
@@ -1011,16 +1011,16 @@ labelled first. The level gap is closable, but by steady accumulation rather
 than a few calibration points.}
 \label{tab:fewshot}
 \small
-\begin{tabular}{rrr}
+\begin{tabular}{rrrr}
 \toprule
-labelled series \(k\) & MAE-skill & mean \(R^2\) \\
+labelled series \(k\) & MAE-skill & mean \(R^2\) & families \(>0\) \\
 \midrule
-0  & \num{0.198} & \num{-0.212} \\
-1  & \num{0.208} & \num{-0.170} \\
-2  & \num{0.220} & \num{-0.142} \\
-5  & \num{0.229} & \num{-0.090} \\
-10 & \num{0.254} & \num{-0.015} \\
-20 & \num{0.289} & \num{+0.061} \\
+0  & \num{0.198} & \num{-0.212} & 9/15 \\
+1  & \num{0.208} & \num{-0.170} & 9/15 \\
+2  & \num{0.220} & \num{-0.142} & 9/15 \\
+5  & \num{0.229} & \num{-0.090} & 9/15 \\
+10 & \num{0.254} & \num{-0.015} & 9/13 \\
+20 & \num{0.289} & \num{+0.061} & 8/13 \\
 \bottomrule
 \end{tabular}
 \end{table}
