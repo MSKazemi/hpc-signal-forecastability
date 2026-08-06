@@ -106,6 +106,14 @@ paper:  ## Build paper/paper.pdf (pdflatex + bibtex; latexmk is not installed)
 		&& pdflatex -interaction=nonstopmode -halt-on-error paper.tex
 	@echo "--- undefined references / citations ---"
 	@grep -E "undefined (reference|citation)|LaTeX Warning: Citation" paper/paper.log || echo "none"
+	@echo "--- multiply-defined labels ---"
+	@# A duplicated \label silently redirects every \ref to the LAST definition.
+	@# Two few-shot tables once shared tab:fewshot and the cross-references
+	@# pointed at the wrong one for several rounds, because this target only
+	@# ever grepped for UNdefined references. Fails the build now.
+	@if grep -q "multiply defined" paper/paper.log; then \
+		grep -E "multiply defined" paper/paper.log; exit 1; \
+	else echo "none"; fi
 
 # --- safety gates ----------------------------------------------------------
 

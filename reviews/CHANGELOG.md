@@ -313,3 +313,46 @@ PDF. Paper builds at 19 pp., zero undefined references.
 No sequence model (OI-6); no bound in MASE units; DFA-1 fit quality unreported (OI-14); three
 references citing a version of record while a preprint was read; eight of fourteen references
 unread; and no independent review.
+
+---
+
+## Round 09 — 2026-08-06 — stop reading the numbers, re-run the scripts
+
+**Snapshot:** `paper/versions/main-r09.tex` (19 pp., unchanged)
+**Review:** `reviews/round-09.md`
+
+Rounds 02, 04 and 08 each found the same class of defect — a number that no longer matched its
+table. Reading for them one at a time was not working, so this round enumerated every numeric
+claim, recomputed it, and separately **re-ran every generating script and diffed**. The second half
+found the two worst defects in the study, and neither was visible in the text.
+
+### Applied this round
+
+| ID | Change | Why |
+|---|---|---|
+| C15 | Derived Table 5's `M100 (real)` row from `link_cv.csv` instead of hand-entering it | It read −0.189 / 9-of-15 / +0.495 against an actual −0.167 / 10-of-15 / +0.523, and `protocol_control.csv` held only the synthetic arms. The stale values had propagated into two prose passages, one of which contradicted §5.3 three pages earlier. A table row no committed artefact reproduces is the defect this study claims not to have. |
+| C17 | Regenerated `protocol_control.csv` (OI-16) | Generated in round 03; the measures changed in rounds 04–07 and the script was never re-run. `no_law` moves 6/15 → 7/15 families positive and +0.100 → +0.156 median Spearman; `disjoint` −0.050 → −0.035. No argument reverses, but four cited numbers were wrong. |
+| C16 | Removed the duplicate few-shot table; `make paper` now **fails** on `multiply defined` | Two tables shared `\label{tab:fewshot}`, so both cross-references pointed at the second. `paper.log` had warned since round 06 — the build check only ever grepped for *undefined* references. |
+| C11 | Recounted "families > 0" over families | The column held the fraction of *(family, draw)* rows. §5.3 claimed labelling raises the share from 60% to 72% while §5.5 correctly said it does not rise. The paper contradicted itself about its own experiment. |
+| C12 | Corrected three per-family few-shot values | Error counters → −0.14 (was −0.03); alarm states → −0.74 (was −1.15); CPU utilisation **rises** to +0.20, reported as a decline to +0.12. |
+| C18 | Restated the k-sweep on the 13 families scorable at every k | Storage and weather cannot give up 10 series and still leave a held-out set, so k≥10 was scored on 13 families and k≤5 on 15 — the headline spanned that change. Matched, it is −0.26 → +0.06: a *larger* improvement, so the finding strengthens. |
+| C14 | Corrected all three extrapolation correlations and the claim built on one | +0.78/−0.66/−0.22 → Pearson +0.85 (p<0.001), −0.60 (p=0.019), −0.40 (p=0.14). "Barely touching the ordering" does not survive −0.40; it does hold on ranks (Spearman +0.01), so both are now reported with the claim attached to the right one. |
+
+### A wrong diagnosis worth recording
+Re-running the protocol control moved three arms but left `portable_oracle` identical to fifteen
+significant digits. I first read that as nondeterminism in the pipeline. It is not: features,
+targets and the cross-validation reproduce exactly across processes, and every `link_*.csv`
+reproduces to within 4e-15. The oracle arm uses the true generating parameter as its only feature,
+so it is invariant to changes in the measures — the pattern was the diagnosis, and I named the
+wrong cause before testing it.
+
+### Verification
+38 checks against committed tables and the compiled PDF, all passing; 9 stale strings confirmed
+absent. `link_*.csv` re-derived and confirmed identical to 4e-15. 157 tests pass. Paper builds at
+19 pp. with zero undefined references and zero multiply-defined labels.
+
+### Still open
+No sequence model (OI-6); no bound in MASE units; DFA-1 fit quality unreported (OI-14); nothing
+re-runs `make reproduce` automatically, so a stale table stays invisible until re-run by hand
+(OI-16); three references citing a version of record while a preprint was read; eight of fourteen
+references unread; no independent review.

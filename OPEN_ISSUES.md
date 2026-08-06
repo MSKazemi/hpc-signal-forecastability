@@ -313,7 +313,7 @@ predictability by an amount comparable to the quantity being measured.
 
 ---
 
-## OI-15 — The headline used R², whose comparator is an oracle the model cannot have `BLOCKING`
+## OI-15 — The headline used R², whose comparator is an oracle the model cannot have `RESOLVED`
 
 > **This is the reason the study reads as a null result, and it is a reporting defect rather than
 > a finding.** It supersedes the framing of the abstract, §5.4, and the conclusion.
@@ -421,3 +421,41 @@ the definitions as implemented, and replace the preprint with the AAAI version o
 No literature has been harvested yet. Every claim about prior work must be checked against the
 actual paper before it enters the manuscript; none has been. This item stays open until the
 reference audit has run over the final bibliography.
+
+---
+
+## OI-16 — A committed results table went stale against its own generating code `RESOLVED`
+
+> Found in round 09 by re-running every generating script and diffing against the committed
+> output. This is the failure the study's reproducibility claim is supposed to exclude, and it
+> survived eight review rounds because nothing ever re-ran the scripts.
+
+**What happened.** `results/tables/protocol_control.csv` was generated in round 03. The
+model-free measures then changed in rounds 04–07 (Welch periodogram for spectral entropy, the
+signed-difference fix to `jump_fraction`, and the measures added with the ceiling analysis). The
+synthetic protocol-control script was never re-run, so the committed table described a feature set
+that no longer existed.
+
+**How it was detected, and why it was nearly missed.** Re-running the script moved three of its
+four arms but left `portable_oracle` identical to fifteen significant digits. That pattern is the
+diagnosis: the oracle arm uses the true generating parameter as its only feature, so it is
+invariant to any change in the measures, while the other three arms are not. The first reading of
+this evidence was that the pipeline was nondeterministic; it is not. Features, targets and the
+cross-validation each reproduce exactly across processes, and re-running the linking stage
+reproduces every committed `link_*.csv` to within 4e-15.
+
+**What changed in the paper.** The `no_law` control moved from 6/15 to 7/15 families positive and
+its median within-family Spearman from +0.100 to +0.156; `disjoint` from −0.050 to −0.035;
+`portable` from +0.248 to +0.249. None of these reverse an argument — the disjoint arm still
+destroys the ordering and the no-law arm still finds nothing — but four cited numbers were wrong.
+
+**The second defect it exposed.** The same table's M100 row was *hand-entered* and had never been
+derived from anything: it read −0.189 / 9-of-15 / +0.495 against the linking analysis's actual
+−0.167 / 10-of-15 / +0.523, and those stale values had propagated into two prose passages. A table
+row that no committed artefact reproduces is precisely the defect this study claims not to have.
+
+**Fix.** `12_protocol_control.py` now derives the real M100 row from `link_cv.csv` using the same
+expressions it applies to the synthetic arms, so the two can only ever disagree about the data.
+The remaining exposure is that no gate re-runs the generating scripts and diffs — `make reproduce`
+exists but is not run automatically, and a stale table is invisible until someone does.
+

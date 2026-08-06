@@ -203,3 +203,33 @@ Plain and accurate. "Rank yes, magnitude no" is memorable; the opening clause is
 ## Running leader after round 06
 **T13 holds at 19.** Nothing this round beats it, and the ceiling finding strengthens rather than
 redirects the argument T13 states. T13 remains the winner for the final round.
+
+## Round 09 candidates
+
+**T19 — Rank Without Calibration: Model-Free Forecast-Difficulty Estimates Transfer Across Eight
+HPC Telemetry Families**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 5 | 5 | 4 | 3 | **17** |
+Accurate and specific, but "rank without calibration" reads as a limitation where T13's "rank for
+free" reads as a result. Same content, weaker framing.
+
+**T20 — The Criterion Decides the Answer: Grouped Cross-Validation on HPC Telemetry**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 4 | 3 | 3 | 4 | **14** |
+Round 08's finding is real and general, but it is a methodological note inside the paper, not the
+paper. A title promising it would misdescribe the contribution.
+
+**T21 — Twenty Series per Family: Transferring Forecast-Difficulty Estimates Across HPC Telemetry**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 5 | 5 | 4 | 4 | **18** |
+The closest challenger yet — concrete and it survives round 09's correction (the calibration
+result strengthened to −0.26 → +0.06). But it drops the ordering half of the finding, which is the
+part that works with no local data at all.
+
+## Running leader after round 09
+**T13 holds at 19.** Nine rounds have not displaced it, and round 09 strengthened rather than
+qualified the claim it makes: the "rank for free" half is unchanged and the "calibrate with twenty"
+half improved once the k-sweep was restated on a matched family set.

@@ -795,7 +795,7 @@ training set and re-fit, averaging over draws
 (Table~\ref{tab:fewshot}).
 
 Twenty labelled series --- a few hours of one operator's attention --- move
-the mean \(R^2\) from \(-0.21\) to \(+0.06\) (\S\ref{sec:fewshot}), and the
+the mean \(R^2\) from \(-0.26\) to \(+0.06\) (\S\ref{sec:fewshot}), and the
 gain is concentrated exactly where the mechanism predicts. Error counters,
 furthest outside the training support, improve from \(-2.39\) to \(-0.14\);
 alarm states from \(-2.41\) to \(-0.74\). Families that already transferred
@@ -1008,17 +1008,20 @@ that were \emph{not} drawn, so nothing is ever evaluated by a model that saw it.
 \centering
 \caption{Transfer as a function of how many series from the held-out family are
 labelled first. The level gap is closable, but by steady accumulation rather
-than a few calibration points.}
+than a few calibration points. Reported over the \num{13} families that can be
+scored at every \(k\): storage and weather have too few series to give up
+\num{10} and still leave a held-out set, so including them would compare
+different family sets across rows.}
 \label{tab:fewshot}
 \small
 \begin{tabular}{rrrr}
 \toprule
 labelled series \(k\) & MAE-skill & mean \(R^2\) & families \(>0\) \\
 \midrule
-0  & \num{0.198} & \num{-0.212} & 9/15 \\
-1  & \num{0.208} & \num{-0.170} & 9/15 \\
-2  & \num{0.220} & \num{-0.142} & 9/15 \\
-5  & \num{0.229} & \num{-0.090} & 9/15 \\
+0  & \num{0.196} & \num{-0.260} & 8/13 \\
+1  & \num{0.208} & \num{-0.209} & 8/13 \\
+2  & \num{0.219} & \num{-0.181} & 8/13 \\
+5  & \num{0.231} & \num{-0.103} & 8/13 \\
 10 & \num{0.254} & \num{-0.015} & 9/13 \\
 20 & \num{0.289} & \num{+0.061} & 8/13 \\
 \bottomrule
@@ -1026,8 +1029,8 @@ labelled series \(k\) & MAE-skill & mean \(R^2\) & families \(>0\) \\
 \end{table}
 
 Table~\ref{tab:fewshot} shows the gap is real and closable. Twenty labelled
-series move the mean \(R^2\) from \(-0.21\) to \(+0.06\) --- past the oracle
-threshold the zero-shot result fails --- and raise MAE-skill from \num{0.198} to
+series move the mean \(R^2\) from \(-0.26\) to \(+0.06\) --- past the oracle
+threshold the zero-shot result fails --- and raise MAE-skill from \num{0.196} to
 \num{0.289}. But the curve is close to linear over this range rather than
 saturating early: one or two calibration series buy very little, and there is no
 knee after which further labelling stops helping. So the missing level
@@ -1036,9 +1039,12 @@ representative example, which is consistent with the level failure not being an
 extrapolation artefact (\S\ref{sec:protocol}).
 
 We note one honest qualification. The number of families with positive mean
-\(R^2\) does not rise with \(k\) (nine at \(k=0\), nine at \(k=10\)); the gain
-is the poorly-transferring families becoming less poor, not additional families
-crossing zero. Monotone error counters remain negative at every \(k\) tested.
+\(R^2\) does not rise with \(k\) --- eight of thirteen at \(k=0\), eight at
+\(k=20\), with a single family crossing and re-crossing zero in between. The
+gain is entirely the poorly-transferring families becoming less poor, not
+additional families crossing zero. Monotone error counters remain negative at
+every \(k\) tested. So labelling repairs the level where it is worst; it does
+not convert a family the profile cannot rank into one it can.
 
 \section{Threats to validity}
 \label{sec:threats}
@@ -1114,7 +1120,7 @@ signal family can use a model-free profile to decide which of its signals to
 attempt first, and can estimate how hard they will be substantially better than
 by guessing --- but not as well as someone who has already worked with that
 family. The remaining gap is closable by labelling, but not cheaply: twenty
-series measured from the new family move the mean \(R^2\) from \(-0.21\) to
+series measured from the new family move the mean \(R^2\) from \(-0.26\) to
 \(+0.06\), and the curve is near-linear over that range, so there is no small
 calibration set that suffices (\S\ref{sec:fewshot}).
 
