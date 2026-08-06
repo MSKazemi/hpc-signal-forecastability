@@ -246,12 +246,29 @@ def fig_predictability_landscape(features: pd.DataFrame, out: Path) -> None:
     save(fig, out)
 
 
-def fig_skill_by_tier(skill: pd.DataFrame, out: Path) -> None:
+def _horizon_label(steps: int) -> str:
+    """Horizons in wall-clock time; "h = 96" means nothing to a reader."""
+    minutes = steps * 15
+    if minutes < 60:
+        return f"{minutes} min"
+    if minutes < 1440:
+        return f"{minutes // 60} h"
+    return f"{minutes // 1440} d"
+
+
+def fig_skill_by_tier(skill: pd.DataFrame, out: Path, *, seasonal_tag: str = "m1") -> None:
     """Does skill keep improving as models get stronger?
 
-    Job: change across an ordered set of model tiers -> the saturation test
-    that the study's central argument depends on.
+    Job: change across an ordered set of model tiers -> the capacity test the
+    study's argument depends on.
+
+    Filters to ONE MASE denominator. Pooling them silently averages two
+    different baselines — a same-step naive and a one-day-lag naive — whose
+    skill scales differ by more than a whole point, and the pooled table
+    reverses the tier ordering. Defaults to the conservative same-step
+    denominator (OI-5).
     """
+    skill = skill[skill.seasonal_tag == seasonal_tag]
     tiers = {
         "persistence": "naive", "seasonal_naive": "naive", "drift": "naive", "mean": "naive",
         "theta": "statistical", "ets": "statistical", "ar": "statistical",
@@ -279,19 +296,23 @@ def fig_skill_by_tier(skill: pd.DataFrame, out: Path) -> None:
         medians = [subset.loc[subset.tier == t, "skill"].median() for t in order]
         ax.plot(
             order, medians, marker="o", color=CATEGORICAL[i % len(CATEGORICAL)],
-            label=f"h = {horizon}",
+            label=_horizon_label(horizon),
         )
         ax.annotate(
-            f"h={horizon}", (len(order) - 1, medians[-1]),
+            _horizon_label(horizon), (len(order) - 1, medians[-1]),
             textcoords="offset points", xytext=(6, 0), fontsize=7.5,
             color=CATEGORICAL[i % len(CATEGORICAL)], va="center",
         )
 
     ax.axhline(0.0, color=INK_MUTED, linewidth=0.9, linestyle="--")
-    ax.text(0.02, 0.01, "no better than seasonal naive", fontsize=7.5, color=INK_MUTED)
-    ax.set_ylabel("median skill  (1 - MASE)")
-    ax.set_xlabel("model tier")
-    ax.legend(title="horizon (steps)", loc="best")
+    # The zero line's meaning goes in the axis label, not in the plot. Every
+    # in-plot position collides: the one-hour series runs within hundredths of
+    # zero across the whole x-range, and the 15-minute series crosses it.
+    ax.set_ylabel("median skill (1 - MASE)\n0 = a same-step naive forecast")
+    ax.set_xlabel("model tier  (increasing capacity)")
+    ax.legend(
+        title="horizon", loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=4, frameon=False
+    )
     ax.set_title("Does more model capacity buy skill?", loc="left", color=INK_PRIMARY)
     save(fig, out)
 
@@ -327,6 +348,7 @@ def main() -> None:
 
     if paths.SKILL.exists():
         fig_skill_by_tier(pd.read_parquet(paths.SKILL), args.out / "skill_by_tier.pdf")
+        print("  (skill figure uses the same-step MASE denominator; see OI-5)")
         built.append(args.out / "skill_by_tier.pdf")
     else:
         print("  (skill.parquet missing; skipping tier figure)")

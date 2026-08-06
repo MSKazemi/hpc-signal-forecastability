@@ -39,20 +39,28 @@ Cluster-robust over 156 metric clusters:
 The best predictor of "is this forecastable" is "does it hold still" — which is closer to a
 restatement than an explanation.
 
-**3. More model capacity makes things worse.** Median skill (1 − MASE) against a same-step naive
-baseline:
+**3. More model capacity makes things worse, and skill goes negative fast.** Median skill
+(1 − MASE) against a **same-step** naive baseline, 331 series:
 
-| tier | h=1 | h=4 | h=12 | h=96 |
+| tier | h=1 (15 min) | h=4 (1 h) | h=12 (3 h) | h=96 (24 h) |
 |---|---:|---:|---:|---:|
-| naive | **0.40** | **0.04** | −0.64 | −3.59 |
-| statistical | 0.10 | −0.13 | −0.76 | −3.77 |
-| boosted trees | −0.02 | −0.78 | −1.91 | −4.32 |
-| neural (MLP) | 0.25 | −0.25 | −1.06 | −5.50 |
+| naive | **0.477** | **0.127** | **−0.513** | **−3.241** |
+| statistical | 0.259 | −0.030 | −0.556 | −3.561 |
+| boosted trees | 0.078 | −0.500 | −1.422 | −4.022 |
+| neural (MLP) | 0.251 | −0.259 | −1.122 | −5.204 |
 
-The best single model at horizons 1, 4 and 12 is `drift` — a straight line through two points.
-**Caveat, and it matters:** the ML and neural models forecast recursively, so error compounds over
-multi-step horizons. Part of this gap is that modelling choice, not the signals. A direct
-multi-horizon model would likely close some of it.
+The naive tier is best at every horizon, and the single best model throughout is `persistence` —
+repeat the last value (0.778, 0.508, 0.155, −2.523). Beyond three hours *every* tier is worse than
+a same-step naive forecast.
+
+**Two caveats, both load-bearing:**
+- The ML and neural models forecast **recursively**, so error compounds over multi-step horizons.
+  Part of this gap is that modelling choice, not the signals; a direct multi-horizon model would
+  likely close some of it.
+- The ordering is specific to this baseline. Against the daily-seasonal denominator the same data
+  puts *statistical* on top (0.892 / 0.838 / 0.755 / 0.303) and boosted trees above naive at h=1.
+  Which baseline you scale by changes which family of models looks best — which is itself a
+  finding about how this literature reports results.
 
 **4. This is not an instrumentation artefact.** Dropping the sampling and quantisation covariates
 *improves* the linking model slightly (−0.79 vs −0.82), and using them alone collapses it (−8.03).
