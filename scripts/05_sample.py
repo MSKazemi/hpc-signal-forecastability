@@ -101,7 +101,11 @@ def main() -> None:
     columns = [
         "plugin", "metric", "entity", "entity_keys", "year_month",
         "origin", "value_kind", "scope", "controlled",
-        "n_samples", "coverage", "dt_median_s", "dt_cv", "missing_frac",
+        "n_samples", "coverage", "missing_frac",
+        # Sampling-quality covariates. dt_jitter and gap_frac measure DIFFERENT
+        # things and the linking analysis needs both: dt_cv conflates them and
+        # inverted the plugin ranking (OI-1).
+        "dt_median_s", "dt_cv", "dt_jitter", "gap_frac",
         "quantisation_step", "n_unique", "v_min", "v_max", "v_mean", "v_std",
     ]
     sample[columns].to_csv(args.out, index=False)

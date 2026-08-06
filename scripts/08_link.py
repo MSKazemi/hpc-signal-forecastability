@@ -48,6 +48,12 @@ def main() -> None:
     ap.add_argument("--sample", type=Path, default=paths.DERIVED / "sample.csv")
     ap.add_argument("--conf", type=Path, default=paths.CONF / "experiment.yaml")
     ap.add_argument("--horizon", type=int, default=None)
+    ap.add_argument(
+        "--seasonal-tag",
+        default="m1",
+        choices=["daily", "m1"],
+        help="which MASE denominator to analyse; m1 is the conservative one",
+    )
     args = ap.parse_args()
 
     with open(args.conf) as fh:
@@ -73,11 +79,12 @@ def main() -> None:
         validate="one_to_one",
     )
 
-    data = prepare(features, skill, horizon=horizon)
+    data = prepare(features, skill, horizon=horizon, seasonal_tag=args.seasonal_tag)
     if data.empty:
         raise SystemExit(f"no series with defined skill at horizon {horizon}")
 
-    print(f"horizon {horizon}: {len(data):,} series with defined skill")
+    print(f"horizon {horizon}, denominator {args.seasonal_tag}: "
+          f"{len(data):,} series with defined skill")
     print(f"median best skill: {data.best_skill.median():.3f}")
     print("\n=== median best skill by origin ===")
     print(data.groupby("origin").best_skill.median().sort_values().round(3).to_string())

@@ -65,7 +65,9 @@ SAMPLING_COLUMNS = ["dt_jitter", "gap_frac", "coverage"]
 INSTRUMENT_COLUMNS = ["log_quantisation_step", "log_step_s", *SAMPLING_COLUMNS]
 
 
-def prepare(features: pd.DataFrame, skill: pd.DataFrame, *, horizon: int) -> pd.DataFrame:
+def prepare(
+    features: pd.DataFrame, skill: pd.DataFrame, *, horizon: int, seasonal_tag: str = "m1"
+) -> pd.DataFrame:
     """Join predictability features to observed skill at one horizon.
 
     Skill is reduced to the median across rolling origins for the best model in
@@ -75,7 +77,7 @@ def prepare(features: pd.DataFrame, skill: pd.DataFrame, *, horizon: int) -> pd.
     """
     keys = ["plugin", "metric", "entity", "year_month"]
 
-    subset = skill[(skill.horizon == horizon) & (skill.seasonal_tag == "daily")].copy()
+    subset = skill[(skill.horizon == horizon) & (skill.seasonal_tag == seasonal_tag)].copy()
     subset = subset[subset.mase.notna()]
     if subset.empty:
         return pd.DataFrame()

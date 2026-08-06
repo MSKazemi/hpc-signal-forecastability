@@ -4,21 +4,64 @@ A predictability study of the monitoring telemetry of CINECA's **Marconi100** (M
 supercomputer, using the public
 [M100 ExaData](https://doi.org/10.1038/s41597-023-02174-3) release.
 
-> **Status: descriptive results only. The central claim is not yet tested.**
+> **Status: the central hypothesis was tested and is NOT supported.**
 >
-> The two findings below are computed and reproducible. The question in the title is **not yet
-> answered**: the forecast benchmark and the linking analysis that would answer it have not
-> finished, so nothing here says whether predictability measures actually explain forecast skill.
+> The study set out to show that forecast difficulty is predictable from model-free properties of
+> a signal. It is not — at least not across signal families. The suite was built so that this
+> outcome was reachable, and it was reached; see [What the study found](#what-the-study-found).
 >
 > Read [`OPEN_ISSUES.md`](OPEN_ISSUES.md) before relying on anything. Twelve threats to validity
-> are registered there, most written before the results existed; one is still marked blocking, and
-> no cited work has yet been checked against its source paper.
+> are registered there, most written before the results existed; no cited work has yet been
+> checked against its source paper.
 >
 > All series are analysed on a common **15-minute grid**. At native cadence the gaps fragment every
 > family beyond use — a Ganglia month has 43,199 slots but a longest gap-free run of 149 — so this
 > study characterises the aggregated representation, not the raw 20-second stream (OI-4).
 
-## What is established so far
+## What the study found
+
+**1. Predictability measures do not transfer across signal families.** Holding out an entire
+family and predicting its forecast skill from the other families' measures gives a mean
+out-of-sample R² of **−0.82** (random forest; ridge −2.36). It beats predicting the global mean
+(−6.00), but a negative R² means it is worse than knowing only the held-out family's own average.
+There is no universal difficulty law here that generalises to signal physics it has not seen.
+
+**2. Individual measures do correlate with skill — but the strongest one is nearly tautological.**
+Cluster-robust over 156 metric clusters:
+
+| measure | r | 95% CI |
+|---|---:|---|
+| fraction of steps that repeat | **+0.40** | [0.25, 0.53] |
+| permutation entropy | −0.35 | [−0.49, −0.18] |
+| daily seasonal strength | −0.24 | [−0.43, −0.02] |
+| excess kurtosis of differences | +0.23 | [0.12, 0.31] |
+
+The best predictor of "is this forecastable" is "does it hold still" — which is closer to a
+restatement than an explanation.
+
+**3. More model capacity makes things worse.** Median skill (1 − MASE) against a same-step naive
+baseline:
+
+| tier | h=1 | h=4 | h=12 | h=96 |
+|---|---:|---:|---:|---:|
+| naive | **0.40** | **0.04** | −0.64 | −3.59 |
+| statistical | 0.10 | −0.13 | −0.76 | −3.77 |
+| boosted trees | −0.02 | −0.78 | −1.91 | −4.32 |
+| neural (MLP) | 0.25 | −0.25 | −1.06 | −5.50 |
+
+The best single model at horizons 1, 4 and 12 is `drift` — a straight line through two points.
+**Caveat, and it matters:** the ML and neural models forecast recursively, so error compounds over
+multi-step horizons. Part of this gap is that modelling choice, not the signals. A direct
+multi-horizon model would likely close some of it.
+
+**4. This is not an instrumentation artefact.** Dropping the sampling and quantisation covariates
+*improves* the linking model slightly (−0.79 vs −0.82), and using them alone collapses it (−8.03).
+Whatever the measures capture, it is not how the data was sampled — which is the conditioning test
+OI-1 called for.
+
+Every number above is in [`results/tables/`](results/tables).
+
+## Descriptive findings
 
 **The monitoring system is itself non-stationary.** Across the 31-month campaign there are 573
 distinct (plugin, metric) pairs, and only **104 are present in every month** — all of them IPMI.
@@ -45,10 +88,15 @@ GPU utilisation, scheduler queue depth, facility cooling — is markedly harder 
 time-series literature would lead you to expect. Models that perform well on standard benchmarks
 degrade sharply on this data.
 
-The usual response is to reach for a bigger model. **This study takes the opposite position:**
+The usual response is to reach for a bigger model. **This study set out to test the opposite
+position:**
 
 > The difficulty is largely *intrinsic to the signals themselves*. It differs systematically
 > between signal families, and it can be measured **without fitting any forecaster at all**.
+
+The first half survives and the second does not. Difficulty is not a modelling deficiency —
+bigger models do worse here, not better. But it is also not a portable property: measures that
+correlate with skill inside one family do not predict skill in a family they have never seen.
 
 ## Method in one diagram
 
@@ -72,8 +120,9 @@ The usual response is to reach for a bigger model. **This study takes the opposi
                   so the relation must generalise to families it never saw.
 ```
 
-If that relation holds, "HPC signals are hard to forecast" stops being folklore and becomes a
-measurable property with named causes.
+The relation was tested by holding out whole families, so it had to generalise to unseen signal
+physics to count. It did not (mean out-of-sample R² = -0.82). "HPC signals are hard to forecast"
+remains, for now, a statement about particular signals rather than a measurable law.
 
 ## Why M100 ExaData is the right substrate
 

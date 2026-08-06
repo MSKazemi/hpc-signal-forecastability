@@ -144,10 +144,15 @@ forecast:
     # cadence rather than with difficulty. Truncation is causal — it drops
     # distant past, never future.
     max_train_points: 1500
-  # The non-seasonal (m=1) robustness check doubles the sweep, so it runs on a
-  # deterministic one-in-five subsample rather than on everything. The subsample
-  # is chosen by hashing the series identity, not by any property of the data.
-  robustness_fraction: 0.2
+  # Both MASE denominators run on every series. This started as a 20% robustness
+  # check, on the assumption that the daily-seasonal denominator was primary and
+  # m=1 a sanity test. Measurement reversed that: against a daily denominator the
+  # median skill at h=4 is 0.769, against a same-step denominator it is -0.235.
+  # The daily denominator compares a one-hour-ahead forecast against a
+  # one-day-lag baseline, which is not like-for-like and flatters every model at
+  # short horizons. The m=1 arm is the conservative one and is now reported
+  # alongside, so it needs the full sample rather than a fifth of it (OI-5).
+  robustness_fraction: 1.0
 
   # Skill is measured on a SUBSET of the sampled series, while predictability is
   # measured on all of them. Profiling the suite gave ~4.7 s per series per
