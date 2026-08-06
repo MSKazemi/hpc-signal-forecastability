@@ -42,12 +42,31 @@ extraction:
       - ipmi
       - ganglia
 
-arms:
-  native:      # native-cadence data extracted from the monthly archives
-    enabled: true
-  aggregated:  # the 15-minute pre-aggregated per-node IPMI set, all 31 months
-    enabled: true
-    step_minutes: 15
+# ---------------------------------------------------------------------------
+# Analysis grid
+#
+# All series are resampled onto ONE common grid before anything is measured.
+# This is not a formatting convenience; it is forced by the data. At native
+# cadence the gaps fragment every family beyond use — a Ganglia month has
+# 43,199 grid slots but its longest gap-free run is 149 samples, and Logics
+# manages 59 out of 37,099. Nothing can be forecast on runs that short, and
+# imputing across the gaps would invent the very structure being measured.
+#
+# At 15 minutes each bin holds many native samples, so empty slots fall from
+# roughly 12% to under 1% and gap-free runs reach 500-3,000 points across every
+# plugin. Fifteen minutes is also the aggregation the ExaData authors chose for
+# their own published anomaly-detection dataset.
+#
+# The cost is stated rather than hidden: this study characterises the
+# 15-minute-aggregated representation of M100 telemetry, not the raw 20-second
+# sensor stream. Aggregation is a low-pass filter and raises apparent
+# predictability (OI-4).
+#
+# Features and skill MUST use the same grid, or the linking analysis would
+# regress predictability of one representation on skill of another.
+# ---------------------------------------------------------------------------
+analysis_grid:
+  step_seconds: 900
 
 # ---------------------------------------------------------------------------
 # Fixed entity panel

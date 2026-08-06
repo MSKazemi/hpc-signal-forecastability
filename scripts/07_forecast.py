@@ -7,23 +7,48 @@ undone.
 
 The seasonal period is fixed per series from its own cadence — a day expressed
 in steps — which was decided before any skill was measured (OI-5). The
-non-seasonal robustness check at m=1 is run alongside, not instead.
+non-seasonal robustness check at m=1 runs on a hashed subsample.
 
 Output: ``data/derived/skill.parquet`` (committed).
+
+Threading
+---------
+The environment variables below MUST be set before numpy, scipy or scikit-learn
+are imported, because their BLAS and OpenMP runtimes read thread counts once at
+load time.
+
+Without them each worker process starts its own pool sized to the core count,
+so five workers on a 24-core machine ask for 120 threads and spend their time
+contending rather than computing. Measured: the same 347-partition sweep ran
+25 partitions in 107 seconds single-threaded-per-worker, and managed 17
+partitions in 7.7 hours with the pools left at their defaults. Parallelism here
+comes from processes, one partition each; every library inside a worker stays
+sequential.
 """
 
 from __future__ import annotations
 
-import argparse
-import hashlib
-import sys
-import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from pathlib import Path
+import os
 
-import numpy as np
-import pandas as pd
-import yaml
+for _var in (
+    "OMP_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+    "VECLIB_MAXIMUM_THREADS",
+):
+    os.environ.setdefault(_var, "1")
+
+import argparse  # noqa: E402
+import hashlib  # noqa: E402
+import sys  # noqa: E402
+import time  # noqa: E402
+from concurrent.futures import ProcessPoolExecutor, as_completed  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+import yaml  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -77,6 +102,7 @@ def run_partition(job: dict) -> tuple[str, int, str]:
             metric=metric,
             year_month=year_month,
             entities=set(job["entities"]),
+            step_s=conf["analysis_grid"]["step_seconds"],
         )
     except Exception as exc:  # noqa: BLE001
         return label, 0, f"error: {type(exc).__name__}: {exc}"

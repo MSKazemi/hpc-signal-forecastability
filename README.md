@@ -10,9 +10,13 @@ supercomputer, using the public
 > answered**: the forecast benchmark and the linking analysis that would answer it have not
 > finished, so nothing here says whether predictability measures actually explain forecast skill.
 >
-> Read [`OPEN_ISSUES.md`](OPEN_ISSUES.md) before relying on anything. Eleven threats to validity
-> are registered there, written before the results existed; two are marked blocking, and no cited
-> work has yet been checked against its source paper.
+> Read [`OPEN_ISSUES.md`](OPEN_ISSUES.md) before relying on anything. Twelve threats to validity
+> are registered there, most written before the results existed; one is still marked blocking, and
+> no cited work has yet been checked against its source paper.
+>
+> All series are analysed on a common **15-minute grid**. At native cadence the gaps fragment every
+> family beyond use — a Ganglia month has 43,199 slots but a longest gap-free run of 149 — so this
+> study characterises the aggregated representation, not the raw 20-second stream (OI-4).
 
 ## What is established so far
 
@@ -31,8 +35,8 @@ across months confounds signal behaviour with changes to the instrument.
 A benchmark that averages over such series reports the share of constants in its sample as much as
 the skill of its models.
 
-Both come from `data/derived/inventory.parquet` and `data/derived/manifest.parquet`, which are
-committed; `make reproduce` regenerates the figures from them without any raw data.
+Both are reproduced in `results/tables/coverage.csv` and `results/tables/constant_share.csv`,
+which are committed.
 
 ## The question
 
@@ -58,9 +62,9 @@ The usual response is to reach for a bigger model. **This study takes the opposi
                   └─────────────────────────────┘            │
                   ┌─────────────────────────────┐            ▼
    each series ──▶│ tiered forecast suite       │──▶ observed skill (MASE)
-                  │ naive → ARIMA/ETS/Theta →   │
-                  │ LightGBM → TCN/N-BEATS/     │
-                  │ PatchTST                    │
+                  │ naive → Theta/Holt/ridge-AR │
+                  │ → boosted trees ×3 capacity │
+                  │ → lag-window MLP ×2 capacity│
                   └─────────────────────────────┘
 
   Central claim:  observed skill ≈ f(intrinsic predictability measures)
@@ -104,7 +108,7 @@ src/hsf/
   lit/         reproducible literature harvest (OpenAlex / arXiv / S2)
 scripts/       one entry point per pipeline stage
 conf/          YAML experiment configs — seeds, horizons, model grid
-data/derived/  small committed artefacts: manifest, taxonomy, features, skill
+data/derived/  taxonomy.csv and sample.csv are committed; parquet is regenerable
 results/       committed tables and figures
 paper/         paper.tex (arXiv format), refs.bib, figures
 literature/    committed screening table and bibliography
@@ -115,24 +119,36 @@ tests/         known-answer tests for the measures; leakage tests for the harnes
 
 ## Reproducing
 
-The committed artefacts in `data/derived/` are sufficient to reproduce every table and figure
-**without downloading any raw data**:
+**What is committed.** Derived `.parquet` is deliberately not tracked — it is bulky and fully
+regenerable from `scripts/`. What *is* committed is small and human-readable:
+
+| path | what it is |
+|---|---|
+| `results/tables/*.csv` | the numbers behind every figure, one CSV per figure |
+| `data/derived/taxonomy.csv` | the a-priori label for every (plugin, metric) pair, with the rule that produced it |
+| `data/derived/sample.csv` | exactly which series were analysed |
+| `literature/screening.csv` | every candidate paper the search returned, with provenance |
+
+So a reader without the archives cannot re-run the pipeline, but **can check every number the
+paper prints** against the table that produced the corresponding figure. That is what claim
+traceability is actually for.
+
+**Full regeneration** needs the M100 ExaData monthly archives from Zenodo (one tar per month; see
+the DOIs in the [ExaData repository](https://gitlab.com/ecs-lab/exadata)):
 
 ```bash
 uv sync
-make reproduce
-```
-
-To regenerate those artefacts from scratch you need the M100 ExaData monthly archives from
-Zenodo (one tar per month; see the DOIs in the
-[ExaData repository](https://gitlab.com/ecs-lab/exadata)). Then:
-
-```bash
 make reproduce-from-raw RAW_DIR=/path/to/exadata/raw
 ```
 
-Extraction is **selective and disk-guarded**: only the required `plugin=/metric=` partitions are
+Extraction is selective and disk-guarded: only the required `plugin=/metric=` partitions are
 pulled from each tar, one month at a time, and the pipeline aborts rather than filling the disk.
+Concurrency is derived from a memory budget rather than the core count, because the reference
+machine is shared.
+
+**Once derived data exists locally**, `make reproduce` rebuilds all tables and figures from it
+without touching the archives again.
+
 
 ## Data source
 

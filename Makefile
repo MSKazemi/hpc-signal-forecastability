@@ -85,8 +85,9 @@ literature:  ## 10 Harvest the literature (OpenAlex / arXiv / Semantic Scholar)
 # --- reproduction paths ----------------------------------------------------
 
 .PHONY: reproduce
-reproduce: link figures  ## Reviewer path: reproduce all results from committed data
-	@echo "Reproduced all tables and figures from data/derived/."
+reproduce: link figures  ## Rebuild tables and figures from LOCAL derived data
+	@echo "Rebuilt results/ from data/derived/."
+	@echo "Note: derived parquet is not committed; run reproduce-from-raw on a fresh clone."
 
 .PHONY: reproduce-from-raw
 reproduce-from-raw: inventory extract manifest taxonomy sample features forecast link figures  ## Full pipeline from raw archives

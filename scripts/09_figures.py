@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
-"""Stage 9 — regenerate every figure from committed derived data.
+"""Stage 9 — build every figure, and the CSV behind it.
 
-Each figure is built from a committed table, so every visual claim in the paper
-is traceable to a number a reader can check. Figures whose inputs do not exist
-yet are skipped with a message rather than faked.
+Derived parquet is not committed: it is bulky and fully regenerable from
+``scripts/`` against the M100 source tree. What IS committed is the small table
+behind each figure, written here as ``results/tables/<figure>.csv``.
 
-Output: ``results/figures/*.pdf``, copied into ``paper/figures/``.
+That keeps the property that matters. A reader without the 420 GB of archives
+cannot re-run the pipeline, but they can check every number the paper prints
+against the exact table that produced the picture — which is the claim
+traceability is actually about. Figures whose inputs are absent are skipped with
+a message rather than faked.
+
+Output: ``results/figures/*.pdf`` (+ ``paper/figures/``) and
+``results/tables/*.csv``.
 """
 
 from __future__ import annotations
@@ -23,6 +30,13 @@ from matplotlib.colors import LogNorm
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from hsf import paths  # noqa: E402
+
+
+def emit(table: pd.DataFrame, name: str) -> None:
+    """Write the numbers behind a figure so they can be checked without the raw data."""
+    paths.TABLES.mkdir(parents=True, exist_ok=True)
+    table.to_csv(paths.TABLES / f"{name}.csv")
+    print(f"  table  results/tables/{name}.csv  ({len(table)} rows)")
 from hsf.viz import (  # noqa: E402
     CATEGORICAL,
     INK_MUTED,
@@ -46,6 +60,8 @@ def fig_coverage(inventory: pd.DataFrame, out: Path) -> None:
         index="plugin", columns="archive_month", values="metric", aggfunc="nunique", fill_value=0
     )
     pivot = pivot.reindex([p for p in PLUGIN_ORDER if p in pivot.index])
+
+    emit(pivot, "coverage")
 
     fig, ax = plt.subplots(figsize=(7.2, 2.6))
     data = pivot.to_numpy(dtype=float)
@@ -95,6 +111,8 @@ def fig_constant_share(manifest: pd.DataFrame, out: Path) -> None:
     )
     counts = manifest.groupby("plugin").size()
 
+    emit(pd.DataFrame({"constant_percent": share, "n_series": counts}).dropna(), "constant_share")
+
     fig, ax = plt.subplots(figsize=(5.4, 2.8))
     colours = [plugin_colour(p) for p in share.index]
     bars = ax.barh(share.index, share.to_numpy(), color=colours, height=0.68)
@@ -143,6 +161,9 @@ def fig_sampling_irregularity(manifest: pd.DataFrame, out: Path) -> None:
         .sort_values("has_jitter")
     )
 
+    emit(stats.rename(columns={"has_jitter": "jitter_percent", "has_gap": "outage_percent"}),
+         "sampling_irregularity")
+
     fig, ax = plt.subplots(figsize=(6.2, 3.2))
     y = np.arange(len(stats))
     height = 0.38
@@ -190,6 +211,12 @@ def fig_predictability_landscape(features: pd.DataFrame, out: Path) -> None:
         print("  (no usable feature rows; skipping landscape)")
         return
 
+    emit(
+        usable.groupby("plugin")[["permutation_entropy", "flat_run_fraction"]]
+        .agg(["count", "median"]),
+        "landscape_summary",
+    )
+
     families = list(usable.groupby("plugin").size().sort_values(ascending=False).index)
     fig, ax = plt.subplots(figsize=(5.6, 4.0))
 
@@ -228,7 +255,8 @@ def fig_skill_by_tier(skill: pd.DataFrame, out: Path) -> None:
     tiers = {
         "persistence": "naive", "seasonal_naive": "naive", "drift": "naive", "mean": "naive",
         "theta": "statistical", "ets": "statistical", "ar": "statistical",
-        "gbt": "ml",
+        "gbt_tiny": "ml", "gbt": "ml", "gbt_large": "ml",
+        "mlp": "neural", "mlp_large": "neural",
     }
     usable = skill[skill.mase.notna()].copy()
     if usable.empty:
@@ -236,8 +264,14 @@ def fig_skill_by_tier(skill: pd.DataFrame, out: Path) -> None:
         return
     usable["tier"] = usable.model.map(tiers)
 
-    order = ["naive", "statistical", "ml"]
+    order = [t for t in ["naive", "statistical", "ml", "neural"] if t in set(usable.tier)]
     horizons = sorted(usable.horizon.unique())
+
+    emit(
+        usable.pivot_table(index="tier", columns="horizon", values="skill", aggfunc="median")
+        .reindex(order),
+        "skill_by_tier",
+    )
 
     fig, ax = plt.subplots(figsize=(5.4, 3.2))
     for i, horizon in enumerate(horizons):

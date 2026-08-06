@@ -116,6 +116,8 @@ def main() -> None:
     print(f"{len(sample):,} sampled series in {len(groups):,} partitions")
 
     min_length = conf["features"]["min_length"]
+    # Same grid as the forecast stage; see analysis_grid in the config.
+    grid_step = conf["analysis_grid"]["step_seconds"]
     rows: list[dict] = []
     skipped_missing = skipped_short = 0
     started = time.time()
@@ -129,7 +131,12 @@ def main() -> None:
         wanted = set(group.entity.astype(str))
         try:
             series_list = load_series(
-                path, plugin=plugin, metric=metric, year_month=year_month, entities=wanted
+                path,
+                plugin=plugin,
+                metric=metric,
+                year_month=year_month,
+                entities=wanted,
+                step_s=grid_step,
             )
         except Exception as exc:  # noqa: BLE001
             print(f"  !! {year_month}/{plugin}/{metric}: {type(exc).__name__}: {exc}", flush=True)
