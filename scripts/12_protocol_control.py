@@ -250,6 +250,40 @@ def main() -> None:
             for arm, data, cv in results
         ]
     )
+    # The real M100 arm belongs in the same table as the synthetic ones, and it
+    # has to be DERIVED rather than typed: an earlier draft carried a
+    # hand-entered row that went stale when the linking analysis was re-run, and
+    # a table row no committed artefact reproduces is exactly the defect this
+    # study claims not to have. Summarised here by the same expressions applied
+    # to the synthetic arms, so the two can only ever disagree about the data.
+    real_path = paths.TABLES / "link_cv.csv"
+    if real_path.exists():
+        real = pd.read_csv(real_path)
+        summary = pd.concat(
+            [
+                summary,
+                pd.DataFrame(
+                    [
+                        {
+                            "arm": "m100",
+                            "n_series": int(real.n_test.sum()),
+                            "mean_r2_forest": real.r2_forest.mean(),
+                            "median_r2_forest": real.r2_forest.median(),
+                            "min_r2_forest": real.r2_forest.min(),
+                            "families_positive": int((real.r2_forest > 0).sum()),
+                            "n_families": len(real),
+                            "median_spearman_within": real.spearman_within.median(),
+                            "median_mae_skill": real.mae_skill.median(),
+                            "mean_r2_level_corrected": real.r2_level_corrected.mean(),
+                        }
+                    ]
+                ),
+            ],
+            ignore_index=True,
+        )
+    else:
+        print("WARNING: link_cv.csv absent; the real M100 row is omitted from the table")
+
     summary.to_csv(paths.TABLES / "protocol_control.csv", index=False)
     print("\n=== summary ===")
     print(summary.round(3).to_string(index=False))

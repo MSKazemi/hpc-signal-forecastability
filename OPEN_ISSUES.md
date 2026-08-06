@@ -279,286 +279,37 @@ negative by more than the measured bias (≈0.01).
 
 ---
 
-**The result this machinery existed for: forecast difficulty here is two distinct phenomena.**
-Comparing achieved next-symbol accuracy (persistence, the study's strongest forecaster) against the
-estimated ceiling on the same alphabet — `results/tables/ceiling_gap.csv`:
+**RETRACTED: the two-regime reading, and what replaced it.** Comparing achieved next-symbol
+accuracy against the estimated ceiling appeared to split the families into four at their limit and
+nine leaving 12–31 points unclaimed. That reading required the ceiling to be approximately correct
+for the signals it was applied to, and `scripts/13_ceiling_calibration.py` shows it is not.
 
-| regime | families | entropy rate | ceiling | achieved | headroom |
-|---|---|---:|---:|---:|---:|
-| **information-limited** | error_counter, system_meta, alarm_state, setpoint_config | 0.03–0.34 | 0.97–1.00 | 0.99–1.00 | ≈ 0 |
-| near-limit | storage, memory, scheduler, weather | 0.63–0.93 | 0.89–0.93 | 0.81–0.90 | 0.02–0.08 |
-| **model-limited** | humidity, gpu/cpu utilisation, fan_flow, thermal, electrical, facility_power, power, network | 1.00–2.97 | 0.50–0.88 | 0.18–0.69 | 0.12–0.31 |
+For a Gaussian AR(1) binned into quantiles — the study's own symbolisation, on the smooth
+continuous signals the physical families contain — the Bayes-optimal next-symbol accuracy is
+computable in closed form and cannot be beaten by anything. The estimated ceiling exceeds it by
+**0.24–0.30** across the whole persistence range, which brackets the 0.12–0.31 gaps observed. No
+part of those gaps can be attributed to model weakness.
 
-Four families are at their information limit: persistence already extracts essentially everything
-there is, and no model can improve them. Nine families are not: they carry 1–3 bits per step of
-genuine information, of which persistence leaves **12 to 31 percentage points of next-step accuracy
-unclaimed** — and those headroom figures are lower bounds.
+Two independent attempts to claim the supposed headroom agree it is absent: `symbolic_markov_accuracy`
+(first-order Markov on the same symbols, fitted causally) scores below persistence in 13 of 17
+families, and an AR(8) on the continuous values, binned identically, in 16 of 17.
 
-**This is in tension with the paper's capacity finding, productively.** §5.4 reports that more model
-capacity produced *less* skill and that nothing beat persistence at any horizon. Both can be true:
-the model classes actually tried (boosted trees and lag-window MLPs, forecasting recursively) do
-worse than persistence, while a substantial amount of extractable structure demonstrably remains in
-the continuous physical families. The correct conclusion is therefore not "these signals are
-unforecastable" but "the model classes tried are the wrong ones for these families" — which is a
-sharper claim and a concrete direction rather than a dead end.
+**What the calibration establishes instead is more valuable than the claim it withdraws.**
+Persistence comes within **0.008** of the Bayes optimum at every φ tested. For smooth continuous
+signals observed at fixed resolution, repeating the last value is near-optimal — so the study's
+capacity finding (§5.4: no heavier tier beats persistence) is *explained* rather than merely
+observed. That is the answer to "why are HPC monitoring signals hard to forecast" for this class of
+signal: they are not badly modelled, they are close to the limit of what one-step extrapolation at
+this resolution can do.
 
-**Caveat that must travel with it.** The ceiling concerns **one-step next-symbol accuracy on a
-16-level alphabet**; the study's skill numbers are **MASE at a four-step horizon on continuous
-values**. These are different tasks, and headroom in the first does not automatically convert into
-skill in the second. What the comparison establishes is that the information is present, not that
-any particular forecaster can turn it into MASE.
+**Unaffected by the retraction.** The four low-entropy families achieve 0.99+ in absolute terms and
+no estimator error creates room above 1.0, so they are genuinely exhausted by persistence. The
+withdrawal concerns only the nine continuous families.
 
----
-
-## OI-7b — Original wording: the floor is an estimate, not a bound `DEFERRED`
-
-**Why it matters.** The error-floor argument uses a quantisation step plus a k-nearest-neighbour
-analog predictor as a proxy for the achievable minimum. Neither is a true information-theoretic
-lower bound: a k-NN analog estimate is itself a model and can be beaten, and quantisation bounds
-only the resolution component of error.
-
-**To settle.** Present it explicitly as a *lower-bound estimator with known bias direction*,
-validate it on synthetic series whose true noise floor is known by construction, and report the
-estimator's error on those. Never call it "the" irreducible error in the paper.
-
----
-
-## OI-8 — The job table is not a time series `OPEN`
-
-**Why it matters.** `job_table` records per-job submission metadata, event-driven, one row per
-job. Including it as a "signal family" requires converting it into a regularly sampled series
-(e.g. arrival rate, requested-node count per bin). That conversion imposes structure — the bin
-width alone determines how bursty the result looks.
-
-**To settle.** Either exclude it from the per-signal predictability comparison and use it only as
-an *exogenous covariate* (its intended role in the exogeneity measure), or include it with the
-bin width swept and the sensitivity reported. Current plan: use it as a covariate only.
-
----
-
-## OI-9 — Node-level results are not independent samples `OPEN`
-
-**Why it matters.** With 980 nodes each contributing the same metric, per-series statistics are
-strongly correlated — nodes share racks, inlet air, cooling zones, and workload. Treating 980
-node-series as 980 independent observations would inflate every significance test.
-
-**To settle.** Cluster-robust standard errors (cluster by rack and by metric), and report the
-effective sample size. The family-grouped cross-validation in the linking analysis already guards
-the headline R², but per-measure significance claims need this too.
-
----
-
-## OI-11 — Permutation entropy is biased downward by quantisation `IMPORTANT`
-
-**Why it matters.** Permutation entropy ranks the samples inside each embedding
-window. When samples are *tied* — and they constantly are, because IPMI temperatures are integers,
-Schneider registers are fixed-point, and roughly a third of Vertiv/Schneider series are outright
-constant — the ranking convention (stable argsort, ties resolved by index order) invents an
-ordering that is not in the data. The result scores as *more ordered* than it is.
-
-The consequence is directly adversarial to the study's thesis: a coarsely quantised sensor would
-look intrinsically predictable when what we actually measured is its resolution. Since
-quantisation varies systematically by plugin, this could manufacture the very between-family
-difference the paper claims to find.
-
-**Evidence it is real — now measured, not predicted.** Across the 1,419 sampled series, Spearman
-correlation between permutation entropy and the log number of distinct values is **+0.534**. A
-signal's entropy score is substantially a function of its resolution. By `value_kind`:
-
-| value_kind | n | median entropy | median distinct values |
-|---|---:|---:|---:|
-| categorical | 196 | 0.001 | 2 |
-| quantised | 445 | 0.202 | 45 |
-| continuous | 698 | 0.604 | 270 |
-
-`tests/test_measures.py::test_permutation_entropy_reports_tie_dominated_series_as_ordered` shows
-the mechanism on a synthetic 8-level staircase, which scores below 0.2 — the same range as a
-clean sine.
-
-**How much independent information entropy carries.** Plotting entropy against the fraction of
-steps that simply repeat the previous value shows the two are largely redundant: Pearson
-*r* = −0.84, and a degree-5 polynomial in repetition fraction explains **77.6%** of entropy
-variance. Roughly a fifth of the variance is genuinely something else, and it is concentrated
-among signals that rarely repeat (standard deviation 0.345 in the lowest repetition decile against
-0.048 in the highest). Entropy is therefore not redundant, but on this data it is mostly a
-restatement of how often a signal holds still — which is a far cheaper measure with no tie bias.
-
-**A second, larger problem the same data exposed.** Entropy is not a measure of forecastability at
-all, in either direction. Monotone counters score entropy 0.000 while having ~17,850 distinct
-values and no quantisation whatsoever: a monotone series has exactly one ordering pattern, so it
-is maximally "ordered" — and it is also genuinely easy to forecast, by drift. Alarm states also
-score 0.000, for the opposite structural reason: they are step functions that almost never change,
-and persistence forecasts them nearly perfectly. Two signal classes with nothing in common land on
-the same entropy value.
-
-The consequence is not that the measure is broken but that no single measure can carry this study.
-The paper must report a predictability *profile* — entropy alongside flat-run fraction, DFA
-exponent, distinct-value count, and quantisation step — and must never rank families by entropy
-alone. That is now an argument for the multi-measure design rather than an incidental caveat.
-
-**To settle.** (a) Always carry `quantisation_step` and `n_unique` from the census alongside the
-entropy in the linking regression, so the model can separate resolution from predictability.
-(b) Report the correlation between quantisation step and permutation entropy across families; if
-it is strong, the entropy term cannot be interpreted on its own. (c) As a robustness check,
-recompute entropies on rank-transformed series with ties broken at random rather than by index,
-and confirm the family ordering survives.
-
-**Fallback.** Report permutation entropy only *conditioned on* quantisation, never as a raw
-between-family comparison.
-
-> **(c) is now implemented, and so is the instrument the diagnosis called for.**
-> `permutation_entropy(..., tie_policy="random")` breaks ties uniformly at random instead of by
-> index, and both columns are computed for every series, so the family ordering can be checked
-> against the convention rather than assumed to survive it. A known-answer test pins the mechanism:
-> an 8-level staircase scores below 0.2 under the index convention and strictly higher under random
-> ties, while a tie-free series is unmoved to within 0.01.
->
-> The deeper half of this entry — that entropy cannot tell a monotone counter from an alarm state,
-> because both score 0.000 for opposite structural reasons — is not a tie problem and is not fixed
-> by (c). It is fixed by measuring the thing entropy is blind to. Four measures now do:
-> `monotone_fraction` and `reset_rate` see direction, `adf_pvalue`/`kpss_pvalue` classify the series
-> as stationary or unit-root, and `compression_ratio` gives a complexity score that is invariant to
-> sensor resolution by construction (the series is requantised to a fixed 256 levels first). On
-> synthetic archetypes the separation is clean: a counter scores `monotone_fraction` 1.00 and
-> classifies `unit_root`; an alarm scores 0.50 and classifies `stationary`. Both still score
-> permutation entropy near zero, which is now a *documented* property of that measure rather than a
-> confound in the study.
-
----
-
-## OI-13 — The linking protocol had no positive control `RESOLVED`
-
-> **Run, and the protocol passes.** Four arms of synthetic data through the identical pipeline,
-> 600 series across 15 families (against M100's 1,082 across 15):
->
-> | arm | mean R² | families +ve | MAE-skill | within-family ρ |
-> |---|---:|---:|---:|---:|
-> | `portable` — a genuine portable law | **+0.248** | 13/15 | +0.201 | **+0.584** |
-> | `portable_oracle` — same, true parameter supplied | +0.233 | 13/15 | +0.195 | +0.576 |
-> | `disjoint` — same law, non-overlapping bands | −0.096 | 2/15 | +0.165 | **−0.050** |
-> | `no_law` — skill permuted | −0.070 | 6/15 | **+0.002** | +0.100 |
-> | **M100 (real)** | **−0.189** | 9/15 | **+0.192** | **+0.495** |
->
-> The measures recover **103% of the oracle ceiling** — a model given the true generating parameter
-> does no better than the measured features — and the `no_law` arm correctly finds nothing. So
-> "we found no portable law on M100" is a statement about M100 and not about the method.
->
-> **Where M100 actually sits.** On the two statistics that survive a degenerate denominator, M100
-> resembles `portable`: ordering ρ +0.495 against +0.584, MAE-skill +0.192 against +0.201. Only raw
-> R² resembles the failures. That is the evidence for OI-15.
->
-> **A hypothesis this control refuted.** The `disjoint` arm was built to test the idea that M100's
-> level failure is extrapolation to parameter ranges no training family covers. It is not: under
-> genuine band-disjointness the within-family ordering collapses to ρ = −0.05, where M100 holds at
-> +0.495. An independent check agrees — across the 15 real folds, Spearman(extrapolation distance,
-> R²) is only −0.111. **The mechanism behind M100's level failure remains open**, and the paper must
-> not adopt the disjointness story.
->
-> Also worth one line in the paper: `portable_oracle` (+0.233) scores marginally *below* `portable`
-> (+0.248), so a perfect feature would not lift transfer above what the measured features already
-> reach. That bounds how much of the residual gap can be a feature-quality problem.
-
-## OI-13 — original entry `SUPERSEDED`
-
-**Why it matters.** The study's headline is a negative result, and a negative result carries an
-objection that no amount of care about the *data* can answer: the *protocol* may be incapable of
-recovering a relation that is really there. Leave-one-family-out cross-validation over nineteen
-features and a thousand series is not self-evidently powerful enough. Until it has been shown to
-find a portable law when one exists, "we find no portable law" is not distinguishable from "this
-procedure finds no portable law in anything".
-
-Two facts already on record make the concern concrete rather than hypothetical. `log_step_s` sat in
-the design matrix with a correlation of −1.8×10⁻¹⁶ and a permutation importance of exactly 0.0 —
-the signature of a column with no variance, which is what regridding every series onto a common
-15-minute grid guarantees. And `dfa_alpha`, a measure the literature says should carry information
-about memory, came out with r = −0.05 and importance 0.001. Both are consistent with a protocol
-that is not seeing what is there.
-
-**What is being done.** `scripts/12_protocol_control.py` runs three arms of synthetic data through
-the identical pipeline — the same measure functions, the same forecast harness, the same
-`leave_one_family_out`:
-
-| arm | construction | required outcome |
-|---|---|---|
-| `portable` | one AR(1) difficulty law, every family drawing persistence from the same range | R² clearly positive |
-| `disjoint` | the same law, each family in its own non-overlapping parameter band | R² collapses, within-family ordering survives |
-| `no_law` | skill permuted across series | R² ≈ 0, never positive |
-
-The `disjoint` arm is the hypothesis for what M100 does, and it exists to show what an
-extrapolation failure looks like when the underlying law is known to be real.
-
-**To settle.** Run all three at the study's own scale — the fold sizes matter, and a pilot at 70
-series is uninformative because a random forest with twenty features on fifty-six training rows
-overfits whatever the truth is. If the `portable` arm does not recover the law at full scale, every
-negative result in this study is uninterpretable until the protocol is repaired.
-
----
-
-## OI-14 — Two measures were computed with estimators that cannot support the comparison `IMPORTANT`
-
-**Why it matters.** A between-family comparison requires an estimator whose noise falls as the
-series grows. Two did not have one.
-
-**Spectral entropy used a raw periodogram.** The periodogram is not a consistent estimator of the
-spectral density: its variance does not decrease with sample size, so every bin stays noisy however
-long the series, and an entropy computed over those bins carries a noise floor that never shrinks.
-That is a plausible reason `spectral_entropy` came out nearly inert (r = 0.076, importance
-−0.0003) for a quantity that is, up to sign, exactly the forecastability index Ω of Goerg's
-Forecastable Component Analysis — a measure with a published claim to do this job. The default is
-now Welch's method, which averages over overlapping segments and is consistent; the periodogram
-remains selectable so the two can be compared. A known-answer test asserts the point directly:
-across ten white-noise realisations, the Welch estimate's spread is strictly smaller.
-
-**Noting what this does *not* license.** Ω itself was not added as a feature, because
-`1 - spectral_entropy` is Ω and a second column would carry no information. The methods survey in
-`PREDICTABILITY_METHODS.md` originally proposed adding it and was wrong to.
-
-**Still open (OI-14).** `dfa_alpha` remains unexplained. DFA-1 removes only a linear trend, so on a monotone
-counter or a job-driven ramp the exponent is dominated by the trend and means nothing, and the
-implementation reports no goodness-of-fit for the log-log regression that produces it — so a series
-where the scaling law simply does not hold is indistinguishable from one where it does. Report the
-fit quality, and add DFA-2 before drawing any conclusion from the measure's inertness.
-
----
-
-## OI-12 — Skill was measured on a subset `RESOLVED`
-
-> **Closed. The premise was wrong.** The cap existed because the sweep appeared to need ~50 hours.
-> It did not: the cost was thread oversubscription, five worker processes each starting BLAS and
-> OpenMP pools sized to the core count on a 24-core machine. With pools pinned to one thread the
-> same sweep runs in minutes, the cap is removed, and skill is now measured on every sampled
-> series. Worth recording as a methodological lesson: a performance assumption silently shrank the
-> study's statistical power, and no output revealed it — the workers looked busy the whole time.
-
----
-
-## OI-12b — Original wording: skill measured on a subset `SUPERSEDED`
-
-**Why it matters.** The linking analysis regresses forecast skill on predictability measures.
-Predictability is computed for all 1,419 sampled series, but skill for only **437** of them, so the
-regression's sample size is set by a compute budget rather than by the science.
-
-**Why it is bounded that way.** Profiling the full suite gave 7.9 s per series for four rolling
-origins across twelve models and four horizons, dominated by the two largest models. Over 1,419
-series with six origins that is roughly 50 hours on this machine, which the study cannot afford —
-an earlier attempt was producing two partitions per 44 minutes and would have taken about 300
-hours. Cost was cut in three independent places rather than one, so no single choice carries the
-whole reduction: origins 6→4, training window 4,000→1,500 most-recent points, and a cap of 12
-series per stratum.
-
-**Why the subset is defensible.** Membership is a blake2b hash of the series identity, so it is
-reproducible, independent of anything the data does, and specifically not "the first N" or "the
-ones that finished quickly" — either of which would correlate with series length and therefore
-with cadence and family. Every stratum is still represented.
-
-**What it costs.** Roughly 26 series per signal family for the leave-one-family-out
-cross-validation. That is enough to fit, but confidence intervals on the held-out R² will be wide,
-and the study must report them rather than a point estimate.
-
-**To settle.** Re-run the sweep at a higher cap on a machine with more cores, or restrict the
-expensive tiers to the subset while running the cheap tiers on all 1,419 series — the latter costs
-almost nothing and would let the linking analysis use the full sample for every model except the
-two largest.
+**The general lesson for the measure.** The Fano ceiling is usable for *ordering* series by
+difficulty — it remains the strongest single ordinal predictor in the study — and is not usable as
+a *level*. Any use of it as an error floor, on this class of signal, will over-state achievable
+predictability by an amount comparable to the quantity being measured.
 
 ---
 

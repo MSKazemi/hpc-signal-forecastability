@@ -99,24 +99,22 @@ substantively: monotone error counters at \(-0.68\), with thermal marginally
 negative at \(-0.01\). The substantive failure is the counters, which a drift
 forecast predicts almost exactly and which no model-free measure anticipates.
 
-Fifth, and separating the two readings of the capacity result, we estimate each
-series' information-theoretic ceiling --- entropy rate by a Lempel-Ziv
-estimator, then maximum predictability by Fano's inequality --- and compare it
-to what persistence achieves on the same alphabet. The families split cleanly.
-Error counters, system metadata, alarm states and setpoint registers carry
-\num{0.03}--\num{0.34} bits per step and persistence already achieves \num{0.99}
-or better: no model can improve them. The other nine families carry
-\num{1}--\num{3} bits per step, of which persistence leaves \num{12} to \num{31}
-percentage points of next-step accuracy unclaimed. So ``hard to forecast'' names
-two different situations, and only the first is a property of the signals.
-Two caveats travel with this. The ceiling is an estimate rather than a bound,
-and its error changes sign across the entropy range --- we calibrate it against
-sources of known rate and find it bounded by \(\pm\num{0.05}\) over the range
-these families occupy, which is well inside the headroom reported. And the
-headroom, though real, is not easily reached: a first-order Markov predictor on
-the same symbols claims none of it, scoring below persistence in \num{13} of
-\num{17} families. The unclaimed structure is therefore not in first-order
-symbol transitions, which narrows where it can be.
+Fifth, we estimate each series' information-theoretic ceiling --- entropy rate
+by a Lempel-Ziv estimator, then maximum predictability by Fano's inequality ---
+and report a negative methodological result about it. Read naively it separates
+the families cleanly, with four sitting at their ceiling and nine appearing to
+leave \num{12}--\num{31} percentage points of next-step accuracy unclaimed. That
+reading does not survive its own control: for a Gaussian AR(1) binned into
+quantiles, where the Bayes-optimal accuracy is computable exactly and unbeatable
+by construction, the estimated ceiling exceeds that optimum by
+\num{0.24}--\num{0.30} --- the same magnitude as the apparent headroom. Two
+independent attempts to claim the gap confirm it is not there: a first-order
+Markov predictor scores below persistence in \num{13} of \num{17} families and
+an AR(8) on continuous values in \num{16} of \num{17}. What the control does
+establish is more useful than the claim it withdraws: persistence comes within
+\num{0.008} of the Bayes optimum across the whole range, so for smooth signals
+observed at fixed resolution it is close to optimal --- which explains our third
+finding rather than sitting in tension with it.
 
 Two controls establish that this is a property of the data rather than of the
 method, and a third shows why the choice of criterion decides the answer. The
@@ -603,121 +601,106 @@ of the recursion.
 \label{fig:tier}
 \end{figure}
 
-\subsection{Two regimes: signal-limited and model-limited families}
+\subsection{Why persistence wins: a ceiling that does not bind}
 \label{sec:ceiling}
 
 The capacity result above says the models we tried do not help. It does not say
 whether anything could. Those are different claims, and separating them needs a
 quantity no forecaster can beat.
 
-We estimate one. Each series is symbolised at its own resolution --- its
-distinct values where there are at most \num{16}, equal-frequency quantiles
-otherwise --- its entropy rate \(S\) is estimated with the Lempel-Ziv estimator
-\(S = n\log_2 n / \sum_i \Lambda_i\), where \(\Lambda_i\) is the length of the
-shortest substring at position \(i\) not seen before it, and the maximum
+We estimated one, and report here both what it showed and why we no longer
+believe the reading we first drew from it. Each series is symbolised at its own
+resolution --- its distinct values where there are at most \num{16},
+equal-frequency quantiles otherwise --- its entropy rate \(S\) is estimated with
+the Lempel-Ziv estimator \(S = n\log_2 n / \sum_i \Lambda_i\), and the maximum
 predictability \(\Pi_{\max}\) follows from the limiting case of Fano's
 inequality
 \[
 S = -[\Pi\log_2\Pi + (1-\Pi)\log_2(1-\Pi)] + (1-\Pi)\log_2(N-1),
 \]
 after \citet{song2010limits}. Against it we place the accuracy persistence
-actually achieves on the \emph{same} alphabet --- persistence because
-\S\ref{sec:skill} finds it the strongest forecaster here, so the comparison
-is not against a straw man.
+achieves on the \emph{same} alphabet.
 
-\textbf{This is an estimate, not a bound, and its error changes sign across the
-entropy range.} Calibrated against 16-state Markov sources whose rate is known
-in closed form, at the \(n=2000\) this data provides, the estimated ceiling errs
-by \(+0.22\) at a true rate of \num{3.98} bits, \(+0.04\) at \num{3.19},
-\(-0.01\) at \num{2.42} and \(-0.05\) at \num{1.43}. The mechanism is
-saturation: on i.i.d. uniform symbols, true rate \num{4.0}, the estimator
-returns \num{3.48} at \(n=1000\) and still only \num{3.62} at \(n=16000\), so
-near-random series receive a ceiling roughly \num{0.24} too generous and that
-error does \emph{not} shrink with more data. At the predictable end the error
-reverses, which is why \num{248} of \num{1402} series (\num{18}\%) exceed their
-own ceiling.
+Read naively the result is striking. Four families --- error counters, system
+metadata, alarm states, setpoint registers --- carry \num{0.03}--\num{0.34} bits
+per step and persistence already achieves \num{0.99} or better, sitting at their
+ceiling. The remaining nine carry \num{1}--\num{3} bits and sit
+\num{0.12}--\num{0.31} below theirs, which invites the conclusion that they hold
+predictability our models fail to extract.
 
-We state this rather than assert a convenient direction, because a natural
-reading --- that the ceiling under-states and headroom is therefore a lower
-bound --- is what we first wrote and is wrong at exactly the end of the range
-where the headroom result lives. What the calibration does license is narrower
-and sufficient: across the estimated rates M100 actually occupies
-(\num{0.03}--\num{2.97} bits) the error is bounded by about \(\pm\num{0.05}\),
-so a headroom above that is evidence and one below it is not. The measure would
-not be usable at all on series approaching \num{3.5} bits, and none here do.
-
-\begin{table}[t]
-\centering
-\caption{Achieved next-symbol accuracy against the estimated information
-ceiling, by family. Headroom is a lower bound. Four families are at their
-limit; nine are not.}
-\label{tab:ceiling}
-\small
-\begin{tabular}{lrrrr}
-\toprule
-Regime (families) & \(S\) & ceiling & achieved & headroom \\
-\midrule
-signal-limited (4)  & 0.03--0.34 & 0.97--1.00 & 0.99--1.00 & \(\approx 0\) \\
-near-limit (4)      & 0.63--0.93 & 0.89--0.93 & 0.81--0.90 & 0.02--0.08 \\
-model-limited (9)   & 1.00--2.97 & 0.50--0.88 & 0.18--0.69 & 0.12--0.31 \\
-\bottomrule
-\end{tabular}
-\end{table}
+\textbf{That conclusion is wrong, and the control that refutes it is the
+contribution of this subsection.} For a Gaussian AR(1) process binned into
+equal-frequency quantiles --- the same symbolisation, on the same kind of smooth
+continuous signal the physical families contain --- the Bayes-optimal
+next-symbol accuracy can be computed exactly: the next value is distributed
+\(\mathcal{N}(\phi x_t,\, 1-\phi^2)\), so integrating that density over each bin
+and taking the most likely bin is unbeatable by construction.
+Table~\ref{tab:calib} compares it against the estimated ceiling, and
+Figure~\ref{fig:ceiling} shows what subtracting that error does to the
+per-family picture.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{ceiling_gap.pdf}
 \caption{Achieved next-symbol accuracy (persistence) against the estimated
-information ceiling, per family, on each series' own alphabet. Bar length is
-headroom. Four families sit at the limit --- their two markers coincide --- and
-the remainder leave between \num{0.02} and \num{0.31} of next-step accuracy
-unclaimed. Error counters fall marginally to the \emph{right} of their ceiling,
-which is the estimator's downward bias rather than a violated bound.}
+ceiling, per family, on each series' own alphabet. The shaded band marks where
+each ceiling would sit after subtracting its calibrated over-statement
+(Table~\ref{tab:calib}). It reaches the achieved value in every family, which is
+why we withdraw the reading that the gaps represent unclaimed predictability.}
 \label{fig:ceiling}
 \end{figure}
 
-The families split into two regimes (Figure~\ref{fig:ceiling},
-Table~\ref{tab:ceiling};
-\texttt{results/tables/ceiling\_gap.csv}). Error counters, system metadata,
-alarm states and setpoint registers carry \num{0.03}--\num{0.34} bits per step,
-and persistence already achieves \num{0.99} or better --- at or above the
-estimated ceiling. Nothing can improve them, and a benchmark that includes them
-is measuring its own sample composition, which is the same point
-\S\ref{sec:constant} makes from a different direction.
+\begin{table}[t]
+\centering
+\caption{The ceiling does not bind on binned continuous signals. The Bayes
+optimum uses the true generating process and cannot be beaten; the estimated
+ceiling exceeds it by \num{0.24}--\num{0.30}, the same size as the ``headroom''
+a naive reading would attribute to weak models. Persistence is within
+\num{0.008} of optimal throughout.}
+\label{tab:calib}
+\small
+\begin{tabular}{rrrrr}
+\toprule
+\(\phi\) & persistence & Bayes optimum & est.\ ceiling & ceiling error \\
+\midrule
+0.50 & \num{0.108} & \num{0.115} & \num{0.352} & \num{+0.237} \\
+0.80 & \num{0.192} & \num{0.195} & \num{0.470} & \num{+0.275} \\
+0.90 & \num{0.268} & \num{0.261} & \num{0.565} & \num{+0.304} \\
+0.95 & \num{0.330} & \num{0.331} & \num{0.631} & \num{+0.301} \\
+0.99 & \num{0.553} & \num{0.556} & \num{0.795} & \num{+0.239} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-The other nine are not at any limit. Power, network, electrical, thermal, fan
-flow, utilisation and humidity signals carry \num{1}--\num{3} bits per step, of
-which persistence leaves \num{12} to \num{31} percentage points of next-step
-accuracy unclaimed.
+Two things follow, and the second is worth more than the claim it replaces.
 
-\textbf{This qualifies \S\ref{sec:skill} rather than contradicting it.} Both
-hold: the model classes we tried --- boosted trees and lag-window networks,
-forecasting recursively --- do worse than persistence, \emph{and} extractable
-structure remains in the continuous physical families beyond the calibrated
-error of the estimate.
+First, the apparent headroom is the estimator, not the models. Its error on this
+class of signal is \num{0.24}--\num{0.30}, which brackets the
+\num{0.12}--\num{0.31} gaps observed, so no part of those gaps can be safely
+attributed to model weakness. We therefore withdraw the two-regime reading. The
+mechanism is saturation: on i.i.d.\ uniform symbols with a true rate of
+\num{4.0} bits the estimator returns \num{3.48} at \(n=1000\) and still only
+\num{3.62} at \(n=16000\), so it cannot resolve rates near the top of a
+16-symbol alphabet at any length this data provides.
 
-\textbf{The headroom is real but not easily reached, and we tested that rather
-than assuming either way.} A gap between achieved accuracy and a ceiling is only
-interesting if some estimator can close part of it, so we fitted the cheapest
-candidate: a first-order Markov predictor on the same symbols, transition matrix
-estimated causally on the first half of each series and evaluated on the second,
-falling back to persistence on unseen states. It claims \emph{none} of the gap.
-Its median accuracy is below persistence in \num{13} of \num{17} families --- by
-\num{0.057} for power, \num{0.051} for CPU utilisation, \num{0.044} for network
---- and above it in none by more than \num{0.004}.
+Two independent attempts to claim the supposed headroom agree. A first-order
+Markov predictor on the same symbols, fitted causally, scores \emph{below}
+persistence in \num{13} of \num{17} families; an AR(8) on the continuous values,
+binned identically, scores below it in \num{16} of \num{17}. Neither takes any
+of the gap, which is what a gap that is not there predicts.
 
-So the unclaimed predictability is not carried by first-order transitions
-between symbols. Whatever the continuous physical families retain lies in longer
-context, in the continuous values that symbolisation discards, or in exogenous
-covariates none of our univariate models see. That is a narrower and more useful
-statement than "the model classes tried are the wrong ones", and it is the one
-the evidence supports: we have shown where the structure is \emph{not}.
+Second, and this is the useful result: \textbf{persistence is essentially
+Bayes-optimal for this class of signal}, falling short by at most \num{0.008}
+across the whole persistence range. That is not a statement about our model
+suite being weak or strong --- it is a property of smooth continuous signals
+observed at a fixed resolution. It \emph{explains} \S\ref{sec:skill} rather than
+sitting in tension with it: no heavier tier beats persistence because, for
+signals of this kind, very little is available to beat it with.
 
-One caveat bounds what the comparison licenses. The ceiling concerns
-\emph{one-step} next-symbol accuracy on a \num{16}-level alphabet; our skill
-numbers are MASE at a \emph{four-step} horizon on continuous values. Headroom
-establishes that the information is present, not that a forecaster can convert
-it into MASE.
+What survives about the four low-entropy families is independent of all this.
+They achieve \num{0.99} or better in absolute terms, and no estimator error can
+create room above \num{1.0}. Those families are genuinely exhausted by
+persistence; the claim we withdraw is only about the other nine.
 
 \subsection{Does the protocol work? A synthetic positive control}
 \label{sec:protocol}

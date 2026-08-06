@@ -220,10 +220,12 @@ def fig_ceiling_gap(features: pd.DataFrame, sample: pd.DataFrame, out: Path) -> 
     )
     emit(table.round(4), "ceiling_gap")
 
-    # Measured downward bias of the Lempel-Ziv ceiling estimate at these series
-    # lengths; below it, "at the limit" and "slightly above it" are the same
-    # claim and the figure must not imply otherwise.
-    bias = 0.01
+    # Calibrated error of the ceiling estimate on binned continuous signals
+    # (stage 13): against a Bayes optimum that cannot be beaten, the estimate
+    # runs 0.24-0.30 too high. Any apparent headroom smaller than this band is
+    # the estimator, not unclaimed predictability, and the figure must show that
+    # rather than let a reader measure the bars and conclude otherwise.
+    bias, error_low, error_high = 0.01, 0.24, 0.30
 
     fig, ax = plt.subplots(figsize=(5.4, 3.4))
     y = np.arange(len(table))
@@ -241,8 +243,12 @@ def fig_ceiling_gap(features: pd.DataFrame, sample: pd.DataFrame, out: Path) -> 
     ax.scatter(table.ceiling, y, s=26, color=CATEGORICAL[5], zorder=3,
                label="estimated ceiling")
 
+    # Shade, for each family, the region its ceiling could occupy once the
+    # calibrated over-statement is subtracted.
     for i, (_, row) in enumerate(table.iterrows()):
         if row.headroom > bias:
+            ax.plot([row.ceiling - error_high, row.ceiling - error_low], [i, i],
+                    color=CATEGORICAL[5], linewidth=6.0, alpha=0.22, zorder=0)
             ax.text(row.ceiling + 0.012, i, f"+{row.headroom:.2f}",
                     va="center", fontsize=7, color=INK_PRIMARY)
 
@@ -253,16 +259,16 @@ def fig_ceiling_gap(features: pd.DataFrame, sample: pd.DataFrame, out: Path) -> 
     ax.set_xlabel("next-symbol accuracy on the series' own alphabet")
     ax.grid(axis="y", visible=False)
     ax.legend(loc="lower left", fontsize=7.5, frameon=False)
-    at_limit = int((table.headroom <= bias).sum())
     ax.set_title(
-        f"{at_limit} of {len(table)} families sit at their information limit; "
-        "the rest have headroom",
+        "The apparent headroom lies inside the ceiling estimate's own error",
         loc="left", color=INK_PRIMARY,
     )
     ax.text(
-        0.0, -0.20,
-        "Grey = headroom within the estimator's measured bias (<=0.01), so indistinguishable "
-        "from the limit.",
+        0.0, -0.34,
+        "Shaded band: where each ceiling would sit after subtracting its calibrated "
+        "over-statement\n(0.24-0.30 against an unbeatable Bayes optimum, stage 13). It reaches "
+        "the achieved value in\nevery family, so no gap here is evidence of unclaimed "
+        "predictability.",
         transform=ax.transAxes, fontsize=7, color=INK_MUTED,
     )
     save(fig, out)

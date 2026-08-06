@@ -131,44 +131,37 @@ even the best naive model is negative (−0.284).
   Which baseline you scale by changes which family of models looks best — which is itself a
   finding about how this literature reports results.
 
-**4. "Hard to forecast" is two different phenomena, and only one of them is about the signals.**
-Estimating each series' information-theoretic ceiling — entropy rate via Lempel–Ziv, then maximum
-predictability by Fano's inequality — and comparing it to what persistence actually achieves on the
-same alphabet splits the families cleanly (`results/tables/ceiling_gap.csv`):
+**4. Persistence is close to optimal for these signals — which is why nothing beats it.**
+Estimating each series' information-theoretic ceiling (entropy rate via Lempel–Ziv, then Fano's
+inequality) appears at first to split the families: four sit at their ceiling, nine look like they
+leave 12–31 points of next-step accuracy unclaimed. **That reading does not survive its own
+control, and we withdraw it.**
 
-| regime | families | entropy rate (bits/step) | ceiling | achieved | headroom |
-|---|---|---:|---:|---:|---:|
-| **information-limited** | error counters, system metadata, alarm states, setpoints | 0.03–0.34 | 0.97–1.00 | 0.99–1.00 | ≈ 0 |
-| near-limit | storage, memory, scheduler, weather | 0.63–0.93 | 0.89–0.93 | 0.81–0.90 | 0.02–0.08 |
-| **model-limited** | power, network, electrical, thermal, fan flow, CPU/GPU utilisation, humidity | 1.00–2.97 | 0.50–0.88 | 0.18–0.69 | 0.12–0.31 |
+For a Gaussian AR(1) binned into quantiles — the same symbolisation, on the same kind of smooth
+continuous signal these families contain — the Bayes-optimal accuracy is computable exactly and
+unbeatable by construction. Against it (`results/tables/ceiling_calibration.csv`):
 
-Four families are at their limit — persistence already extracts everything available, and no model
-can improve them. Nine are not: they carry one to three bits per step of real information, of which
-persistence leaves **12–31 percentage points of next-step accuracy unclaimed**.
+| φ | persistence | Bayes optimum | estimated ceiling | ceiling error |
+|---:|---:|---:|---:|---:|
+| 0.50 | 0.108 | 0.115 | 0.352 | **+0.237** |
+| 0.80 | 0.192 | 0.195 | 0.470 | **+0.275** |
+| 0.90 | 0.268 | 0.261 | 0.565 | **+0.304** |
+| 0.95 | 0.330 | 0.331 | 0.631 | **+0.301** |
+| 0.99 | 0.553 | 0.556 | 0.795 | **+0.239** |
 
-This sits in productive tension with finding 3. Both are true: the model classes actually tried do
-worse than persistence, *and* substantial extractable structure remains in the continuous physical
-families. So the conclusion is not "these signals are unforecastable" but "the model classes tried
-are the wrong ones for them."
+The estimator over-states by 0.24–0.30 — bracketing the 0.12–0.31 gaps observed — so none of that
+apparent headroom can be attributed to weak models. Two independent attempts to claim it agree it
+is not there: a first-order Markov predictor on the same symbols scores *below* persistence in 13
+of 17 families, and an AR(8) on the continuous values in 16 of 17.
 
-**The headroom is real, but not easily reached.** A gap only means something if some estimator can
-close part of it, so the cheapest candidate was fitted: a first-order Markov predictor on the same
-symbols, estimated causally on each series' first half. It claims **none** of the gap — scoring
-*below* persistence in 13 of 17 families (power −0.057, CPU utilisation −0.051, network −0.044) and
-above it in none by more than 0.004. So the unclaimed predictability is not carried by first-order
-symbol transitions; it lies in longer context, in the continuous values symbolisation discards, or
-in exogenous covariates no univariate model here sees.
+**What replaces it is worth more.** Persistence comes within **0.008** of the Bayes optimum at every
+φ. For smooth continuous signals observed at fixed resolution, repeating the last value is close to
+optimal — which *explains* finding 3 rather than sitting in tension with it. No heavier tier beats
+persistence because there is very little to beat it with.
 
-**Two caveats.** The ceiling is an **estimate, not a bound**, and its error *changes sign* across
-the entropy range: calibrated against sources of known rate, it over-states by +0.22 at 3.98 bits
-and under-states by −0.05 at 1.43 bits, because the estimator saturates near 3.6 bits and cannot
-reach 4.0 at any length. An earlier version of this README claimed the bias was uniformly downward
-and headroom therefore a lower bound; that was wrong at exactly the end of the range where the
-headroom result lives. What the calibration does support is narrower and enough: over the rates
-these families occupy (0.03–2.97 bits) the error is within about ±0.05, well inside the headroom
-reported. Second, the ceiling concerns one-step accuracy on a 16-level alphabet whereas the study's
-skill is MASE at four steps on continuous values — headroom shows the information is present, not
-that a forecaster can convert it into MASE.
+What survives independently: the four low-entropy families (alarm states, setpoints, system
+metadata, error counters) achieve 0.99+ in absolute terms, and no estimator error creates room
+above 1.0. Those are genuinely exhausted by persistence.
 
 **5. This is not an instrumentation artefact.** Dropping the sampling and quantisation covariates
 *improves* the linking model slightly (−0.14 vs −0.16), and using them alone collapses it (−15.0).
