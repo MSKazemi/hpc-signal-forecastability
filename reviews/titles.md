@@ -174,3 +174,32 @@ the finding. Slightly long.
 searchability and preserves continuity with the original question framing. **T13 is the
 presumptive winner** — the procedure is what a reader will remember and cite, and "calibrate with
 twenty" is the paper's most transferable sentence.
+
+## Round 06 candidates
+
+The ceiling result reinforces the same axis: information-theoretic quantities rank difficulty well
+and bound it badly. No new dimension, so these are refinements rather than departures.
+
+**T16 — Ranking Difficulty Without Bounding It: Model-Free Predictability of HPC Telemetry**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 5 | 5 | 3 | 4 | **17** |
+Captures both the transfer and the ceiling result in one clause. Less concrete than T13.
+
+**T17 — Twenty Labels Beat an Entropy Bound: Calibrating Forecast Difficulty Across HPC Telemetry
+Families**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 4 | 5 | 4 | 5 | **18** |
+Provocative and true, but sets up a comparison the paper does not literally run — the ceiling and
+the few-shot result answer different questions. Accuracy drops for that.
+
+**T18 — What Model-Free Measures Know About HPC Telemetry: Rank Yes, Magnitude No**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 5 | 4 | 4 | 4 | **17** |
+Plain and accurate. "Rank yes, magnitude no" is memorable; the opening clause is a little soft.
+
+## Running leader after round 06
+**T13 holds at 19.** Nothing this round beats it, and the ceiling finding strengthens rather than
+redirects the argument T13 states. T13 remains the winner for the final round.

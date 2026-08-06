@@ -355,7 +355,7 @@ than assigned a spuriously large score.
 \subsection{Pipeline and cost}
 \label{sec:pipeline}
 
-The study is a twelve-stage pipeline, each stage writing a committed artefact so
+The study is a thirteen-stage pipeline, each stage writing a committed artefact so
 that any stage can be re-run without repeating the ones before it
 (Table~\ref{tab:pipeline}). Bulk intermediates are sharded per partition and
 skipped when present, which makes an interrupted run resumable rather than
@@ -392,6 +392,7 @@ once pinned.
 10 & literature & screening table, bibliography \\
 11 & direct control & recursive vs direct forecasting \\
 12 & protocol control & synthetic arms with known ground truth \\
+13 & ceiling & Fano bound per series (slowest stage, ${\sim}35$\,min) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -688,6 +689,31 @@ an unfamiliar family with no local data at all; calibrating the absolute
 difficulty needs on the order of twenty labelled examples from that family, and
 needs them most precisely where the ranking was already usable but the level was
 not.
+
+\paragraph{An information-theoretic reference point, and what it is not.} A
+natural question is how far the achieved skill sits from an information-theoretic
+limit. We compute one for every series: the entropy rate of the symbolised
+signal, converted through Fano's inequality into an upper bound on the fraction
+of next-bin transitions any predictor could get right. Computed on a 16-symbol alphabet, the median across
+\num{1402} series is \num{0.854}, and it separates families sharply --- network
+traffic at \num{0.575} and electrical measurements at \num{0.638} against alarm
+states and setpoint registers at \num{0.996}.
+
+It is \emph{not} a bound on our skill metric, and we report that rather than
+let the framing imply otherwise. \num{77.5}\% of series achieve a skill above
+their own ``ceiling''. The two quantities answer different questions: Fano
+bounds next-\emph{bin} accuracy on a symbolised sequence, while skill is a
+scale-free error ratio on continuous values, and a signal that is easy to
+extrapolate but hard to bin exactly can exceed the first while doing well on the
+second. Anyone reading the number as a limit on achievable error would be
+misled.
+
+What it is instead is the single strongest ordinal predictor of difficulty we
+found: Spearman \(+0.69\) with achieved skill across series and \(+0.73\)
+across family medians, ahead of the compression ratio and every entropy measure.
+That is consistent with the paper's central result --- these measures rank well
+and calibrate badly --- and it extends it, since the ceiling is derived from
+information theory rather than fitted to anything.
 
 \paragraph{A scale-free view.} Because \(R^2\) is dominated by that level
 error, we also report mean absolute error against the same baseline. On that

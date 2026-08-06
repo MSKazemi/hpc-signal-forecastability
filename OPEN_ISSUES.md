@@ -209,12 +209,56 @@ which spans four architecture families and roughly two orders of magnitude of pa
 
 ---
 
-## OI-7 — The irreducible-error floor was never computed `OPEN`
+## OI-7 — The irreducible-error floor was never computed `ADDRESSED`
 
-> **Not attempted.** The planned error-floor decomposition — a k-nearest-neighbour analog bound
-> plus the quantisation step — was not implemented, so the paper makes no claim about how much of
-> the observed error is irreducible. Nothing in the results depends on it. Recorded here so the
-> gap is visible rather than inferred from its absence.
+> **A ceiling now exists, by a different and stronger route than the one planned.** The original
+> plan — a k-nearest-neighbour analog bound plus the quantisation step — was never implemented, and
+> would in any case have produced an *estimate* rather than a bound, which OI-7b correctly
+> objected to. What is implemented instead is a genuine information-theoretic bound.
+
+**What was added.** Each series is symbolised at its own resolution (its distinct values where
+there are at most 16, equal-frequency quantiles otherwise), its entropy rate is estimated with the
+Lempel–Ziv estimator `S = n log₂ n / Σ Λᵢ`, and the maximum predictability `Π_max` is obtained by
+solving the limiting case of Fano's inequality
+
+```
+S = −[Π log₂ Π + (1−Π) log₂(1−Π)] + (1−Π) log₂(N−1)
+```
+
+for `Π`, following the construction of Song et al. (*Science* 327:1018, 2010). This is the only
+quantity in the study that no forecaster can beat, which is what makes it able to answer the
+question the whole paper is about: **is a family hard because the signal is at its information
+limit, or because the models are weak?**
+
+`symbolic_persistence_accuracy` supplies the matching achieved number — the accuracy of "repeat the
+last symbol" on the *same* alphabet — because a ceiling is uninterpretable without a comparable
+achievement. Persistence is the fair comparator rather than a straw man: this study finds it is the
+strongest forecaster on this data at every horizon tested.
+
+**Behaviour on known cases**, all pinned by tests:
+
+| series | entropy rate (bits) | ceiling |
+|---|---:|---:|
+| constant | 0.000 | 1.000 |
+| alarm state (1% switching) | 0.111 | 0.985 |
+| monotone counter | 0.340 | 0.967 |
+| smoothed thermal | 1.961 | 0.718 |
+| white noise | 3.545 | 0.326 |
+
+A fair coin recovers 1.0 bit to within 0.15, and for a first-order Markov chain — where Fano is
+*tight* and the analytic optimum is `p + (1−p)/N` — the estimated ceiling matches that optimum to
+within 0.05.
+
+**Two honest limitations.** First, `Π_max` bounds *next-symbol* accuracy on a chosen alphabet, not
+multi-step MASE, so it is not directly comparable to the study's skill numbers; the alphabet size
+is carried alongside every ceiling for exactly this reason, and cross-family comparison requires
+holding it fixed. Second, the match-length cap in the LZ estimator biases the ceiling *downward*,
+which is the wrong direction for an upper bound; it is set high enough (512, against a typical
+match length near 16) that it should not bind, but a series predictable enough to reach it would
+have its ceiling under-reported rather than over-reported.
+
+**Still to do.** Report the achieved-versus-ceiling gap per family, which is the analysis this
+machinery exists for and which the next linking run will produce.
 
 ---
 

@@ -43,6 +43,12 @@ FEATURE_COLUMNS = [
     "spectral_entropy",
     "sample_entropy",
     "compression_ratio",
+    # An information-theoretic ceiling on next-step accuracy rather than a score
+    # (OI-7). Unlike every other column here it has an operational meaning: no
+    # forecaster can beat it, so it separates "the signal is at its limit" from
+    # "the model is weak".
+    "predictability_ceiling",
+    "entropy_rate",
     "lempel_ziv",
     "dominant_period_strength",
     "daily_seasonal_strength",

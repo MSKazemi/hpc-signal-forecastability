@@ -757,6 +757,193 @@ def sample_entropy(
     return float(-math.log(a / b))
 
 
+def _symbolise(x: np.ndarray, max_alphabet: int = 16) -> tuple[np.ndarray, int]:
+    """Map a series to a small integer alphabet, preserving its own resolution.
+
+    A series that is already discrete — an alarm state, an integer temperature,
+    a fixed-point register — keeps its own levels when it has few enough of
+    them, because binning it further would destroy real structure. A continuous
+    series is cut at equal-frequency quantiles, which is the maximum-entropy
+    choice and so does not flatter predictability.
+    """
+    values = np.unique(x)
+    if values.size <= max_alphabet:
+        return np.searchsorted(values, x), int(values.size)
+    edges = np.quantile(x, np.linspace(0, 1, max_alphabet + 1)[1:-1])
+    return np.searchsorted(edges, x), max_alphabet
+
+
+def entropy_rate(x: np.ndarray, max_alphabet: int = 16, max_length: int = 2000,
+                 max_match: int = 512) -> float:
+    """Lempel-Ziv estimate of the entropy rate, in bits per symbol.
+
+    Uses the Kontoyiannis et al. (1998) estimator
+    ``S = n log2(n) / sum_i Lambda_i``, where ``Lambda_i`` is the length of the
+    shortest substring starting at position ``i`` that has not appeared before
+    it. Long matches mean the past predicts the future and the rate is low.
+
+    Unlike every other complexity measure in this module, the entropy rate has
+    an operational meaning: it bounds how well *any* predictor can do
+    (:func:`max_predictability`). That is what makes it worth the cost.
+
+    ``max_match`` caps the match length, and the direction of that bias needs
+    stating carefully because it runs the *wrong* way for a bound. Capping can
+    only shorten matches, which raises the estimated rate and therefore
+    **lowers** the derived ceiling — making the bound tighter than the truth,
+    which is exactly how an upper bound stops being one. It is set high enough
+    that it almost never binds: typical match length is about
+    ``log2(n) / S`` symbols, so at ``n = 2000`` and the rates seen in this data
+    it sits near 16, far below the cap. A series predictable enough to hit the
+    cap would have its ceiling *under*-reported, so the cap is a floor on
+    honesty rather than a source of over-claiming.
+    """
+    x = _clean(x)
+    if x.size < 32:
+        return NAN
+    if x.size > max_length:
+        x = x[:max_length]
+
+    symbols, alphabet = _symbolise(x, max_alphabet)
+    if alphabet <= 1:
+        return 0.0  # a constant series carries no information per symbol
+
+    # A string turns the substring search into a C-speed operation; without it
+    # the estimator is unusably slow at these lengths.
+    text = "".join(chr(33 + int(s)) for s in symbols)
+    n = len(text)
+
+    total = 1  # Lambda_0 is 1 by definition: nothing precedes the first symbol
+    for i in range(1, n):
+        length = 1
+        while length <= max_match and i + length <= n and text[i : i + length] in text[:i]:
+            length += 1
+        total += length
+    if total <= 0:
+        return NAN
+    return float(n * math.log2(n) / total)
+
+
+def max_predictability(rate: float, n_states: int) -> float:
+    """Fano upper bound on the accuracy of any next-step predictor.
+
+    Solves, for ``Pi``, the limiting case of Fano's inequality used by Song
+    et al. (*Science* 327:1018, 2010) to bound the predictability of human
+    mobility::
+
+        S = -[Pi log2 Pi + (1-Pi) log2(1-Pi)] + (1-Pi) log2(N-1)
+
+    where ``S`` is the entropy rate in bits per symbol and ``N`` the number of
+    distinct states. The result is the largest fraction of next symbols that
+    *any* model could get right, given the uncertainty actually present in the
+    sequence. It fits no forecaster and so is a property of the signal.
+
+    This is the only measure in the study that yields a *ceiling* rather than a
+    score, which is what makes it able to separate "the signal is hard" from
+    "our models are weak": a family whose achieved accuracy sits near its own
+    ceiling is intrinsically hard, and one far below it is badly modelled.
+
+    **It is an estimate of the ceiling, not a bound, and must never be called
+    one.** The Fano solve below is exact given ``rate``, but ``rate`` comes from
+    a Lempel-Ziv estimator that is biased *upward* at the series lengths this
+    study has, which biases the ceiling *downward*. Measured against Markov
+    chains whose true rate is known in closed form, at ``n = 2000``:
+
+    ========  ==========  =========  ==========  ========
+    p(stay)   true rate   estimated  true ceil.  estimated
+    ========  ==========  =========  ==========  ========
+    0.99      0.076       0.127      0.992       0.986
+    0.95      0.290       0.348      0.962       0.953
+    0.85      0.686       0.712      0.887       0.882
+    ========  ==========  =========  ==========  ========
+
+    The gap closes only around ``n = 16000``, far above the ~3000 samples a
+    month of 15-minute data provides. Consequently a genuinely near-deterministic
+    series can *exceed* its estimated ceiling, and on M100 roughly 18% do. The
+    bias direction is the useful part: because the ceiling is under-estimated,
+    any headroom it reports (ceiling minus achieved) is a *lower* bound on the
+    true headroom, so "these models leave predictability unclaimed" is the
+    conservative reading and is safe to assert. The opposite claim — that a
+    family sits *at* its information limit — is the one this estimator cannot
+    establish on its own, and is stated only where the gap is negative or zero
+    by a margin larger than the bias above.
+
+    Returns 1.0 for a deterministic sequence and 1/N for a maximally uncertain
+    one. The right-hand side is monotone decreasing in ``Pi``, so the root is
+    unique and a bisection is safe.
+    """
+    if not np.isfinite(rate) or n_states < 2:
+        return NAN
+    upper = math.log2(n_states)
+    if rate <= 0:
+        return 1.0
+    if rate >= upper:
+        return 1.0 / n_states
+
+    def fano(pi: float) -> float:
+        if pi <= 0.0 or pi >= 1.0:
+            binary = 0.0
+        else:
+            binary = -(pi * math.log2(pi) + (1 - pi) * math.log2(1 - pi))
+        return binary + (1 - pi) * math.log2(n_states - 1) - rate
+
+    low, high = 1.0 / n_states, 1.0 - 1e-12
+    if fano(low) < 0:
+        return 1.0 / n_states
+    for _ in range(200):
+        mid = 0.5 * (low + high)
+        if fano(mid) > 0:
+            low = mid
+        else:
+            high = mid
+    return float(0.5 * (low + high))
+
+
+def predictability_ceiling(x: np.ndarray, max_alphabet: int = 16) -> tuple[float, float, int]:
+    """Entropy rate, Fano ceiling, and alphabet size for one series.
+
+    Returned together because the ceiling is uninterpretable without the
+    alphabet it was computed on: a series binned into two states has a very
+    different ceiling from the same series binned into sixteen, and comparing
+    families requires knowing which was used.
+    """
+    x = _clean(x)
+    if x.size < 32:
+        return NAN, NAN, 0
+    _, alphabet = _symbolise(x[: min(x.size, 2000)], max_alphabet)
+    if alphabet <= 1:
+        # A constant series is perfectly predictable, not undefined. This is not
+        # a corner case here: constants run from 8% of out-of-band sensors to
+        # 65% of alarm-state signals, so returning nan would silently drop the
+        # most predictable third of the sample from any ceiling comparison.
+        return 0.0, 1.0, 1
+    rate = entropy_rate(x, max_alphabet=max_alphabet)
+    return rate, max_predictability(rate, alphabet), alphabet
+
+
+def symbolic_persistence_accuracy(x: np.ndarray, max_alphabet: int = 16) -> float:
+    """Accuracy of "repeat the last symbol", on the alphabet the ceiling uses.
+
+    The ceiling from :func:`max_predictability` is a bound on next-symbol
+    accuracy, so comparing anything to it requires an accuracy measured on the
+    *same* symbolisation. This supplies one, using persistence — which this
+    study finds is the strongest forecaster on this data at every horizon, so it
+    is the fair achieved-performance comparator rather than a straw man.
+
+    The pair (achieved, ceiling) is what separates the study's two candidate
+    explanations for poor forecast skill. A family sitting near its ceiling is
+    at the information limit and no model can help it; a family far below has
+    predictability that the models are failing to extract. Neither number alone
+    can make that distinction, which is why \\oi{7} went unresolved for so long.
+    """
+    x = _clean(x)
+    if x.size < 32:
+        return NAN
+    symbols, alphabet = _symbolise(x[: min(x.size, 2000)], max_alphabet)
+    if alphabet <= 1:
+        return 1.0  # a constant series is repeated correctly every step
+    return float(np.mean(symbols[1:] == symbols[:-1]))
+
+
 def compression_ratio(x: np.ndarray, levels: int = 256, max_length: int = 16384) -> float:
     """Compressed size of the 8-bit-quantised series, as a fraction of raw.
 

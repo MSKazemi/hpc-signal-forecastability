@@ -212,3 +212,40 @@ The argument is now complete end to end: ordering transfers, level does not, ext
 why, and ~20 local labels repair it. Rounds 01–04 each found either a stale number or a new
 experiment; round 05 found a new experiment. If round 06 finds neither, the loop stops and writes
 FINAL.md.
+
+---
+
+## Round 06 — 2026-08-06
+
+**Snapshot:** `paper/versions/main-r06.tex` (16 pp., unchanged in length)
+**Review:** `reviews/round-06.md` · **Recommendation:** Accept with minor revision
+
+### Applied
+
+| ID | Change | Why |
+|---|---|---|
+| C8 | Computed the Fano predictability ceiling and added it to §5.5 — **explicitly not as a bound** | `predictability_ceiling` was implemented with 18 tests and no consumer, and OI-7 recorded the error floor as never computed. Computing it across 1,402 series gives a median of 0.854 with sharp family separation (network 0.575, electrical 0.638; alarm/setpoint 0.996). **77.5% of series exceed their own ceiling**, so it does not bound this skill metric — Fano bounds next-*bin* accuracy on a symbolised sequence, skill is a scale-free ratio on continuous values. Reporting it as "the irreducible floor", which is what OI-7 asked for, would have put a claim in the paper contradicted by its own data in three cases out of four. |
+| — | Reported what it *is* worth | The strongest ordinal predictor in the study: Spearman +0.69 with achieved skill across series, +0.73 across family medians, ahead of the compression ratio (−0.42) and every entropy measure. Derived from information theory rather than fitted, so it strengthens the rank-well/calibrate-badly result rather than repeating it. |
+| Mo11 | Stated the 16-symbol alphabet | Family comparisons are only valid at fixed alphabet size. |
+| Mo12 | Pipeline table 12 → 13 stages, ceiling marked as the slowest (~35 min) | So nobody re-runs expecting it to be quick. |
+
+### Deferred
+- **Song et al. 2010** (*Limits of Predictability in Human Mobility*) is the canonical reference for
+  the entropy-rate-plus-Fano construction and the paper does not cite it. **Not added this round**
+  because the source was not obtained, and this project does not cite unread work as if read.
+  Flagged for round 07.
+- **AAAI version of record, second attempt: failed.** OJS returns a non-PDF payload; the CDN path
+  returns 403. Three routes tried across the session. Recorded as attempted-and-unavailable rather
+  than untried; needs institutional access.
+
+### Verification
+8/8 ceiling numbers verified against `ceiling.csv` and `skill.parquet`. Paper builds at 16 pp., zero
+undefined references.
+
+### Titles
+T16–T18 added; none beats **T13**, which remains the winner for the final round.
+
+### Convergence note
+Round 06 found one substantive item (C8), so the loop continues. Round 07 has exactly one queued
+task — obtain and cite Song et al. 2010 — which is a citation fix rather than a finding. If that is
+all round 07 produces, the stop condition is met.

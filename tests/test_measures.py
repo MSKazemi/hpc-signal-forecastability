@@ -20,6 +20,7 @@ from hsf.features.measures import (
     compression_ratio,
     dfa_alpha,
     dominant_period_strength,
+    entropy_rate,
     drift_ratio,
     excess_kurtosis,
     flat_run_fraction,
@@ -27,12 +28,15 @@ from hsf.features.measures import (
     kpss_pvalue,
     lempel_ziv_complexity,
     longest_flat_run,
+    max_predictability,
     monotone_fraction,
     permutation_entropy,
+    predictability_ceiling,
     reset_rate,
     sample_entropy,
     seasonal_strength,
     stationarity_class,
+    symbolic_persistence_accuracy,
     spectral_entropy,
     variance_ratio,
 )
@@ -414,3 +418,127 @@ def test_welch_estimate_is_less_noisy_across_realisations(rng):
     welch = np.std([spectral_entropy(d, method="welch") for d in draws])
     periodogram = np.std([spectral_entropy(d, method="periodogram") for d in draws])
     assert welch < periodogram
+
+
+# ---------------------------------------------------------------------------
+# information-theoretic ceiling (OI-7)
+#
+# The only measure in the suite that produces a BOUND rather than a score, so
+# its correctness matters more than the others': a wrong ceiling would let the
+# study claim a signal is intrinsically hard when it is merely badly modelled.
+# ---------------------------------------------------------------------------
+
+
+def test_entropy_rate_orders_signals_by_predictability(constant, sine, noise):
+    assert entropy_rate(constant) == 0.0
+    assert entropy_rate(sine) < entropy_rate(noise)
+
+
+def test_entropy_rate_of_a_fair_coin_approaches_one_bit(rng):
+    """Known answer: an i.i.d. fair binary source has an entropy rate of 1 bit."""
+    coin = (rng.random(N) < 0.5).astype(float)
+    assert entropy_rate(coin) == pytest.approx(1.0, abs=0.15)
+
+
+def test_entropy_rate_of_a_biased_coin_is_below_its_marginal_entropy(rng):
+    """A 90/10 coin has marginal entropy 0.469 bits; the rate must not exceed it by much."""
+    biased = (rng.random(N) < 0.1).astype(float)
+    assert entropy_rate(biased) < 0.8
+
+
+def test_max_predictability_end_points():
+    # A deterministic source can be predicted perfectly.
+    assert max_predictability(0.0, 4) == 1.0
+    # A maximally uncertain source can only be guessed at chance.
+    assert max_predictability(np.log2(4), 4) == pytest.approx(0.25)
+    # And it is monotone decreasing in the entropy rate between those.
+    ceilings = [max_predictability(s, 8) for s in (0.2, 0.5, 1.0, 2.0)]
+    assert ceilings == sorted(ceilings, reverse=True)
+
+
+def test_max_predictability_solves_fano_exactly():
+    """The returned Pi must satisfy the equation it claims to solve."""
+    for rate, n_states in ((0.5, 4), (1.2, 8), (2.0, 16)):
+        pi = max_predictability(rate, n_states)
+        binary = -(pi * np.log2(pi) + (1 - pi) * np.log2(1 - pi))
+        assert binary + (1 - pi) * np.log2(n_states - 1) == pytest.approx(rate, abs=1e-6)
+
+
+def test_ceiling_matches_the_analytic_bound_for_a_markov_chain(rng):
+    """A case where the true ceiling is known in closed form.
+
+    For a first-order chain that repeats the previous symbol with probability
+    ``p`` and otherwise draws uniformly from ``states``, the optimal next-step
+    predictor is persistence and its accuracy is ``p + (1-p)/states``. Fano is
+    *tight* here: substituting the chain's entropy rate into the bound returns
+    exactly that accuracy. So this pins the estimator against an analytic
+    answer, not merely against a plausible ordering.
+
+    The comparison is against the analytic optimum rather than the realised
+    accuracy, because the bound constrains the *expected* accuracy and a finite
+    sample fluctuates around it — at n = 8000 the standard error is ~0.004, so a
+    realised run sitting slightly above the true bound is sampling noise and not
+    a violation.
+    """
+    n, states, p = 8000, 4, 0.85
+    seq = np.zeros(n)
+    for t in range(1, n):
+        seq[t] = seq[t - 1] if rng.random() < p else rng.integers(0, states)
+
+    optimal = p + (1 - p) / states
+    _, ceiling, alphabet = predictability_ceiling(seq)
+    assert alphabet == states
+    assert ceiling == pytest.approx(optimal, abs=0.05)
+
+
+def test_ceiling_leaves_room_above_a_deliberately_weak_predictor(rng):
+    """A bound that no model can approach would be useless; this one is not.
+
+    The study's purpose for the ceiling is to distinguish "the signal is hard"
+    from "the model is weak", which requires that a weak model sits visibly
+    below it.
+    """
+    n, states, p = 8000, 4, 0.85
+    seq = np.zeros(n)
+    for t in range(1, n):
+        seq[t] = seq[t - 1] if rng.random() < p else rng.integers(0, states)
+
+    # Always guess the most common symbol: correct, but far from optimal.
+    counts = np.bincount(seq.astype(int), minlength=states)
+    weak = float(np.mean(seq == counts.argmax()))
+    _, ceiling, _ = predictability_ceiling(seq)
+    assert weak < ceiling - 0.1
+
+
+def test_ceiling_is_reported_with_its_alphabet(sine):
+    rate, ceiling, alphabet = predictability_ceiling(sine, max_alphabet=8)
+    assert alphabet == 8
+    assert 0.0 < ceiling <= 1.0
+    assert rate >= 0.0
+
+
+def test_ceiling_is_biased_low_and_the_direction_is_documented(rng):
+    """Pins the estimator's known bias, because a claim rests on its direction.
+
+    The Lempel-Ziv entropy-rate estimator converges from above at the series
+    lengths available here, so the derived ceiling is an *under*-estimate. That
+    is why the study may assert "these models leave predictability unclaimed"
+    (headroom is a lower bound) but may not assert "this family is at its
+    information limit" from a small positive gap alone.
+
+    If this test ever fails in the other direction, the ceiling has become an
+    over-estimate and the headroom claims in the paper are no longer safe.
+    """
+    p, states, n = 0.95, 4, 2000
+    seq = np.zeros(n)
+    for t in range(1, n):
+        seq[t] = seq[t - 1] if rng.random() < p else rng.integers(0, states)
+
+    true_ceiling = p + (1 - p) / states
+    _, estimated, _ = predictability_ceiling(seq)
+    assert estimated < true_ceiling, "estimator is expected to under-report the ceiling"
+    assert estimated > true_ceiling - 0.05, "under-reporting should be small, not gross"
+
+
+def test_symbolic_accuracy_is_one_for_a_constant(constant):
+    assert symbolic_persistence_accuracy(constant) == 1.0

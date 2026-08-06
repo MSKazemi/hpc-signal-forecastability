@@ -43,11 +43,13 @@ from hsf.features.measures import (  # noqa: E402
     longest_flat_run,
     monotone_fraction,
     permutation_entropy,
+    predictability_ceiling,
     reset_rate,
     sample_entropy,
     seasonal_strength,
     spectral_entropy,
     stationarity_class,
+    symbolic_persistence_accuracy,
     variance_ratio,
 )
 from hsf.io.series import load_series  # noqa: E402
@@ -82,6 +84,8 @@ def measure_series(values: np.ndarray, step_s: float, conf: dict) -> dict:
 
     sample_entropy_conf = features.get("sample_entropy", {"m": 2, "r_times_sd": 0.2})
 
+    ceiling_rate, ceiling, ceiling_alphabet = predictability_ceiling(values)
+
     return {
         # entropy / complexity
         "permutation_entropy": permutation_entropy(values, order=pe["order"], delay=pe["delay"]),
@@ -98,6 +102,16 @@ def measure_series(values: np.ndarray, step_s: float, conf: dict) -> dict:
             r_times_sd=sample_entropy_conf["r_times_sd"],
         ),
         "compression_ratio": compression_ratio(values),
+        # Information-theoretic CEILING, not a score: the largest fraction of
+        # next symbols any predictor could get right (OI-7). Carried with the
+        # alphabet it was computed on, without which it is uninterpretable.
+        "entropy_rate": ceiling_rate,
+        "predictability_ceiling": ceiling,
+        "ceiling_alphabet": ceiling_alphabet,
+        # Achieved accuracy on the SAME symbolisation, so it is comparable to
+        # the ceiling above. The gap between them is what distinguishes an
+        # intrinsically hard signal from a badly modelled one.
+        "symbolic_persistence_accuracy": symbolic_persistence_accuracy(values),
         "lempel_ziv": lempel_ziv_complexity(values),
         # periodicity
         "dominant_period_steps": period,
