@@ -38,7 +38,7 @@
 \newcommand{\oi}[1]{\textsc{oi-#1}}
 
 \title{Why Are HPC Monitoring Signals Hard to Forecast?\\
-       \large Intrinsic Predictability Across Nine Telemetry Families
+       \large Intrinsic Predictability Across Eight Telemetry Families
        of a Tier-0 Supercomputer}
 
 \author{Mohsen Seyedkazemi Ardebili\\
@@ -52,17 +52,21 @@
 \begin{abstract}
 Operational telemetry from high-performance computing systems resists
 forecasting to a degree that is widely reported anecdotally and rarely
-explained. The usual response is to increase model capacity. We argue instead
-that the difficulty is largely \emph{intrinsic to the signals}, differs
-systematically between signal families, and can be quantified without fitting
-any forecaster.
+explained. The usual response is to increase model capacity. We test the
+opposite position: that the difficulty is largely \emph{intrinsic to the
+signals}, differs systematically between signal families, and can be quantified
+without fitting any forecaster. Half of that position survives our own test and
+half does not, and we report both.
 
 Using the public M100 ExaData release from CINECA's Marconi100 Tier-0
-supercomputer, we characterise telemetry from nine heterogeneous plugin
+supercomputer, we characterise telemetry from eight heterogeneous plugin
 families --- out-of-band sensors, operating-system counters, scheduler
-aggregates, alarm states, facility power, cooling-plant control registers, and
-exogenous weather --- collected from the same machine over the same 31 months,
-so that signal type varies while system, workload, and period are held fixed.
+aggregates, alarm states, facility power, room-level electrical measurement,
+cooling-plant control registers and air handlers, and exogenous weather ---
+collected from the same machine over the same 31 months. (A ninth family,
+per-job submission records, is collected but is event-structured rather than a
+time series, and is excluded; \oi{8}.) The families are held
+fixed in system, workload and period while signal type varies.
 For each series we compute model-free predictability measures spanning entropy,
 periodicity, long memory, non-stationarity, and quantisation, and separately
 measure the forecast skill achieved by a tiered suite ranging from naive
@@ -83,15 +87,18 @@ skill by tier at a one-hour horizon runs \num{0.127} for naive forecasters,
 \num{-0.500} for gradient-boosted trees, and beyond three hours every tier is
 worse than repeating the last value.
 
-Fourth, and contrary to our hypothesis, the predictability measures do
-\emph{not} transfer across signal families. Individually they correlate with
-skill --- repetition fraction at \(r=+0.40\) (cluster-robust 95\% CI
-\([0.25, 0.53]\) over \num{156} metric clusters), permutation entropy at
-\(-0.35\) --- but a model trained on every family except one predicts the
-held-out family's skill with a mean \(R^2\) of \(-0.82\). It beats predicting
-the global mean (\(-6.00\)) yet remains worse than knowing only the held-out
-family's own average. We find no portable law of forecast difficulty. What the
-measures mostly capture is how often a signal holds still, which is closer to a
+Fourth, and contrary to our hypothesis, the predictability measures transfer
+across signal families only weakly and inconsistently. Individually they
+correlate with skill --- repetition fraction at \(r=+0.40\) (cluster-robust
+95\% CI \([0.25, 0.53]\) over \num{156} metric clusters), permutation entropy
+at \(-0.345\). Jointly, a model trained on every family except one predicts the
+held-out family's skill with a median \(R^2\) of \(+0.07\) across \num{13}
+families, positive for \num{7} of them but ranging from \(+0.57\) down to
+\(-10.9\). The mean, \(-0.82\), is a report of that single worst family rather
+than a summary of the distribution. The failure is localised rather than
+general: it is monotone counters, which a drift forecaster predicts almost
+perfectly for reasons no predictability feature anticipates. What the measures
+mostly capture is how often a signal holds still, which is closer to a
 restatement of forecastability than an explanation of it.
 \end{abstract}
 
@@ -114,7 +121,7 @@ causes rather than folklore.
 Our contributions are: (i) a quantitative census of signal heterogeneity across
 a 31-month Tier-0 monitoring campaign, including the instability of the
 monitoring system itself; (ii) a model-free predictability profile for each of
-\num{1419} series drawn from nine plugin families; (iii) a strictly causal,
+\num{1402} series drawn from eight plugin families; (iii) a strictly causal,
 scale-free forecast benchmark over four model tiers on the same series; and
 (iv) a test of whether the first predicts the second, cross-validated by holding
 out entire signal families.
@@ -140,10 +147,15 @@ We catalogue every partition of all 31 archives --- \num{10504} partitions
 holding roughly \num{55} billion rows --- and extract the subset the study
 requires. Because node-level series of one metric are highly redundant, and
 because nodes sharing a rack, inlet air and workload are not independent
-samples (\oi{9}), analysis runs on a fixed panel of \num{96} entities whose
-membership is a stable hash of the entity label. The hash sees only the label,
-so panel membership is identical across every metric and month and cross-metric
-comparisons land on the same physical machines.
+samples (\oi{9}), analysis runs on a fixed panel of \num{96} \emph{primary}
+entities --- nodes, cooling devices or PLC panels --- whose membership is a
+stable hash of the entity label. The hash sees only the label, so panel
+membership is identical across every metric and month and cross-metric
+comparisons land on the same physical machines. Families keyed by a secondary
+tag yield proportionally more series than the cap suggests: Nagios identifies a
+series by node \emph{and} check description and reaches \num{1484} distinct
+series in a single metric-month, where the \num{96} bound applies to the node
+dimension alone.
 
 \subsection{The nine plugin families}
 \label{sec:families}
@@ -231,12 +243,13 @@ Transformers, we find the useful baseline is simpler still.
 
 \paragraph{What we did not verify.} MASE~\citep{hyndman2006another}, permutation
 entropy~\citep{bandt2002permutation}, detrended fluctuation
-analysis~\citep{peng1994mosaic}, the Theta
-method~\citep{assimakopoulos2000theta} and dispersion
-entropy~\citep{rostaghi2016dispersion} are cited for definitions we implement
+analysis~\citep{peng1994mosaic} and the Theta
+method~\citep{assimakopoulos2000theta} are cited for definitions we implement
 and test against known-answer series. Their full texts are paywalled and were
-not read; no claim is made here about their findings beyond the definitions,
-and we do not attribute results to them.
+not read; no claim is made here about their findings beyond the definitions, and
+we attribute no result to them. Three of the four works we did read were
+obtained as preprints rather than the versions of record we cite, which we note
+as a limitation of the audit rather than of the works.
 
 \section{Method}
 \label{sec:method}
@@ -333,9 +346,9 @@ them IPMI --- are present in every month. Ganglia's metric count runs
 monotonic; SLURM's runs \num{20}, \num{2}, \num{0}, \num{2}, \num{36};
 Schneider first appears in 21-03 and Vertiv and Weather in 21-04.
 
-Any claim compared across months therefore confounds signal behaviour with
-changes to the instrument, and we restrict cross-month statements accordingly
-(\oi{2}).
+Figure~\ref{fig:coverage} shows the pattern. Any claim compared across months
+therefore confounds signal behaviour with changes to the instrument, and we
+restrict cross-month statements accordingly (\oi{2}).
 
 \begin{figure}[t]
 \centering
@@ -354,7 +367,14 @@ more than a factor of seven between families: \num{64.8}\% for Nagios,
 against \num{10.5}\% SLURM, \num{8.4}\% IPMI and \num{0}\% Weather. MASE is
 undefined for such series --- the seasonal-naive denominator is zero --- and
 they are excluded from skill statistics and counted rather than silently
-dropped.
+dropped. Figure~\ref{fig:constant} gives the breakdown.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{constant_share.pdf}
+\caption{Share of series that never change over a month, by family.}
+\label{fig:constant}
+\end{figure}
 
 \subsection{Regularity and interruption are different properties}
 \label{sec:sampling}
@@ -367,15 +387,38 @@ gap exceeding a hundred times the median --- its sampling is exact and
 universally interrupted, and the rare enormous gaps dominate the coefficient of
 variation. Ganglia is the only family whose interval genuinely wanders
 (\num{81}\% of series), which is what the documentation reports. We therefore
-measure jitter and interruption separately (\oi{1}).
+measure jitter and interruption separately (\oi{1}); Figure~\ref{fig:sampling}
+shows that the two are nearly orthogonal.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{sampling_irregularity.pdf}
+\caption{Interval jitter and outage incidence are different properties. IPMI has
+no jittery series and no uninterrupted ones.}
+\label{fig:sampling}
+\end{figure}
 
 \subsection{Forecast skill and model capacity}
 \label{sec:skill}
 
 Figure~\ref{fig:tier} shows median skill by tier and horizon on \num{331}
-series. Capacity does not buy skill: the naive tier leads at every horizon, the
-best single model throughout is persistence, and beyond three hours every tier
-is worse than repeating the last value. Two qualifications are essential. The
+series, pooling every model within a tier. Capacity does not buy skill: the
+naive tier leads at every horizon and the best single model throughout is
+persistence.
+
+Pooling penalises a tier for containing a deliberately weak member, so we also
+compare each tier's \emph{best} model per series, paired across series. That
+comparison is both more favourable to the sophisticated tiers and more
+conclusive against them. At a one-hour horizon the per-series best is
+\num{0.957} (IQR \([0.69, 1.00]\)) for naive, \num{0.880} for statistical,
+\num{0.766} for boosted trees and \num{0.680} for neural networks; a paired
+Wilcoxon test of naive against each other tier rejects equality at every horizon
+(\(p < 10^{-4}\) at one hour, \(p < 10^{-8}\) for the machine-learning and
+neural tiers at every horizon tested). The ordering is not an artefact of
+pooling. At a 24-hour horizon even the best naive model is negative
+(\num{-0.153}), so the claim that no tier beats a same-step naive forecast holds
+at a day but not at three hours, where the per-series best naive model still
+scores \num{0.906}. Two qualifications are essential. The
 machine-learning and neural models forecast \emph{recursively}, so error
 compounds over multi-step horizons; part of the gap is that choice rather than
 the signals. And the ordering depends on the baseline: against a daily-seasonal
@@ -397,11 +440,23 @@ metric clusters, repetition fraction reaches \(r=+0.40\) (95\% CI
 \([0.25,0.53]\)), permutation entropy \(-0.35\), daily seasonal strength
 \(-0.24\) and excess kurtosis \(+0.23\).
 
-Jointly they do not generalise. Holding out an entire family gives a mean
-out-of-sample \(R^2\) of \(-0.82\) for a random forest and \(-2.36\) for
-ridge, against \(-6.00\) for predicting the global mean. Beating that baseline
-shows the measures carry information; the negative sign shows it is not enough
-to beat the held-out family's own average.
+Jointly they generalise only weakly. Holding out each of \num{13} families in
+turn gives a \emph{median} out-of-sample \(R^2\) of \(+0.07\) for a random
+forest, positive for \num{7} of the \num{13}, and ranging from \(+0.57\)
+(setpoint and configuration registers) to \(-10.9\) (monotone error counters).
+The mean over families, \(-0.82\), is dominated by that single worst case:
+excluding it, the mean is \(+0.03\). Reporting the mean alone would describe
+one family rather than the relation.
+
+The failure is therefore specific rather than general, and its cause is
+identifiable. Monotone counters are forecast almost exactly by a drift model,
+because they increase steadily by construction; nothing in a predictability
+profile built from entropy, periodicity, memory and stationarity anticipates
+that a signal will be trivial for one particular extrapolator. A profile that
+included a monotonicity or unit-root term would likely absorb the case, which is
+a concrete direction rather than a general indictment. What the evidence
+supports is that the measures transfer weakly and inconsistently, not that no
+portable notion of difficulty exists.
 
 The result is not an artefact of instrumentation. Removing the sampling and
 quantisation covariates slightly \emph{improves} the model (\(-0.79\) against
@@ -437,16 +492,31 @@ is not a modelling deficiency: across four tiers spanning naive baselines to
 neural networks, more capacity produced less skill, and beyond three hours
 nothing beat repeating the last value.
 
-The other half does not. Measures that correlate with skill within the pooled
-data fail to predict it for a family they have not seen, with a mean held-out
-\(R^2\) of \(-0.82\). Forecast difficulty here is a property of particular
-signals rather than a portable law, and the measure that carries most of the
-signal --- how often a series holds still --- is closer to a restatement than an
-explanation.
+The other half does not, though less completely than a single summary statistic
+suggests. Measures that correlate with skill within the pooled data transfer to
+an unseen family only weakly: a median held-out \(R^2\) of \(+0.07\), positive
+for \num{7} of \num{13} families and catastrophic for one. Forecast difficulty
+here is closer to a family-specific property than a portable law, and the
+measure carrying most of the signal --- how often a series holds still --- is
+nearer a restatement than an explanation.
+
+The one clean failure is instructive. Monotone counters defeat the model
+entirely because a drift forecaster handles them almost exactly, and no measure
+of entropy, periodicity, memory or stationarity predicts that a signal will be
+trivial for one specific extrapolator. That suggests the profile is missing a
+term rather than that the programme is misconceived, and it is a cheap thing for
+future work to test.
 
 For operators the practical reading is narrower than we hoped but still useful:
-on this data, at these horizons, a persistence forecast is a strong default, and
-the burden of proof lies with any claim that a heavier model improves on it.
+on this data, at these horizons, a persistence forecast is a strong default ---
+significantly better than every heavier tier we tested, at every horizon --- and
+the burden of proof lies with any claim that a larger model improves on it.
+
+\section*{Disclosure}
+
+The author is a co-author of the M100 ExaData dataset paper~\citep{borghesi2023m100}
+analysed here. No part of this study was performed as part of that data-collection
+campaign, and the analysis uses only the public release.
 
 \section*{Data and code availability}
 

@@ -4,11 +4,12 @@ A predictability study of the monitoring telemetry of CINECA's **Marconi100** (M
 supercomputer, using the public
 [M100 ExaData](https://doi.org/10.1038/s41597-023-02174-3) release.
 
-> **Status: the central hypothesis was tested and is NOT supported.**
+> **Status: the central hypothesis was tested and holds only weakly.**
 >
 > The study set out to show that forecast difficulty is predictable from model-free properties of
-> a signal. It is not — at least not across signal families. The suite was built so that this
-> outcome was reachable, and it was reached; see [What the study found](#what-the-study-found).
+> a signal. Across signal families it transfers weakly and inconsistently — positive for 7 of 13
+> families, near zero in median, and failing outright for one. The suite was built so this outcome
+> was reachable; see [What the study found](#what-the-study-found).
 >
 > Read [`OPEN_ISSUES.md`](OPEN_ISSUES.md) before relying on anything. Twelve threats to validity
 > are registered there, most written before the results existed; no cited work has yet been
@@ -20,11 +21,16 @@ supercomputer, using the public
 
 ## What the study found
 
-**1. Predictability measures do not transfer across signal families.** Holding out an entire
-family and predicting its forecast skill from the other families' measures gives a mean
-out-of-sample R² of **−0.82** (random forest; ridge −2.36). It beats predicting the global mean
-(−6.00), but a negative R² means it is worse than knowing only the held-out family's own average.
-There is no universal difficulty law here that generalises to signal physics it has not seen.
+**1. Predictability measures transfer across families only weakly.** Holding out each of 13
+families in turn gives a **median** out-of-sample R² of **+0.07**, positive for **7 of 13**, and
+ranging from +0.57 (setpoint/config registers) down to **−10.9** (monotone error counters). The
+mean, −0.82, is a report of that one worst family rather than a summary — excluding it, the mean
+is +0.03.
+
+The failure is localised and explicable: monotone counters are forecast almost exactly by a drift
+model, and nothing in a profile of entropy, periodicity, memory and stationarity anticipates that
+a signal will be trivial for one specific extrapolator. That points at a missing term, not a
+misconceived programme.
 
 **2. Individual measures do correlate with skill — but the strongest one is nearly tautological.**
 Cluster-robust over 156 metric clusters:
@@ -49,9 +55,11 @@ restatement than an explanation.
 | boosted trees | 0.078 | −0.500 | −1.422 | −4.022 |
 | neural (MLP) | 0.251 | −0.259 | −1.122 | −5.204 |
 
-The naive tier is best at every horizon, and the single best model throughout is `persistence` —
-repeat the last value (0.778, 0.508, 0.155, −2.523). Beyond three hours *every* tier is worse than
-a same-step naive forecast.
+The naive tier is best at every horizon and the single best model throughout is `persistence`.
+Comparing each tier's *best* model per series — fairer, since pooling penalises a tier for holding
+a weak member — a paired Wilcoxon rejects equality of naive against every other tier at every
+horizon (p < 10⁻⁴ at one hour; p < 10⁻⁸ for the ML and neural tiers throughout). At 24 hours even
+the best naive model is negative (−0.153).
 
 **Two caveats, both load-bearing:**
 - The ML and neural models forecast **recursively**, so error compounds over multi-step horizons.
@@ -102,9 +110,10 @@ position:**
 > The difficulty is largely *intrinsic to the signals themselves*. It differs systematically
 > between signal families, and it can be measured **without fitting any forecaster at all**.
 
-The first half survives and the second does not. Difficulty is not a modelling deficiency —
-bigger models do worse here, not better. But it is also not a portable property: measures that
-correlate with skill inside one family do not predict skill in a family they have never seen.
+The first half survives; the second only partly. Difficulty is not a modelling deficiency —
+bigger models do worse here, not better, significantly so at every horizon. But it is also not
+cleanly portable: measures that correlate with skill inside one family predict it only weakly for
+a family they have never seen.
 
 ## Method in one diagram
 
@@ -129,8 +138,9 @@ correlate with skill inside one family do not predict skill in a family they hav
 ```
 
 The relation was tested by holding out whole families, so it had to generalise to unseen signal
-physics to count. It did not (mean out-of-sample R² = -0.82). "HPC signals are hard to forecast"
-remains, for now, a statement about particular signals rather than a measurable law.
+physics to count. It does so only weakly (median held-out R² = +0.07, positive for 7 of 13
+families). "HPC signals are hard to forecast" remains closer to a family-specific property than a
+measurable law.
 
 ## Why M100 ExaData is the right substrate
 

@@ -309,7 +309,10 @@ def fig_skill_by_tier(skill: pd.DataFrame, out: Path, *, seasonal_tag: str = "m1
     # in-plot position collides: the one-hour series runs within hundredths of
     # zero across the whole x-range, and the 15-minute series crosses it.
     ax.set_ylabel("median skill (1 - MASE)\n0 = a same-step naive forecast")
-    ax.set_xlabel("model tier  (increasing capacity)")
+    # Not "(increasing capacity)": no parameter count or FLOP budget is reported
+    # for these tiers, and boosted trees and small MLPs are not obviously
+    # ordered against each other. The axis states the tiers, not a ranking.
+    ax.set_xlabel("model tier")
     ax.legend(
         title="horizon", loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=4, frameon=False
     )
