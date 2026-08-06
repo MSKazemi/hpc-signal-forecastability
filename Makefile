@@ -6,8 +6,11 @@
 #
 # Everything runs through `uv`, so no global Python state is required.
 
-RAW_DIR   ?= /home/mohsen/exadata/raw
-AGG_DIR   ?= /home/mohsen/exadata/time_aggregated
+# Point these at a local copy of the M100 ExaData release (one tar per month).
+# Override on the command line or via the environment:
+#   make reproduce-from-raw RAW_DIR=/path/to/exadata/raw
+RAW_DIR   ?= $(HOME)/exadata/raw
+AGG_DIR   ?= $(HOME)/exadata/time_aggregated
 MIN_FREE_GB ?= 30
 WORKERS   ?= 4
 # Concurrency is derived from this budget, not from the core count: the machine
