@@ -179,10 +179,64 @@ Weather   & outdoor conditions                    & \unit{10}{min} & exogenous \
 \section{Related work}
 \label{sec:related}
 
-\needsresult{To be written from the screening table in
-\texttt{literature/screening.csv}.} Every claim in this section must be
-verified against the source PDF before submission; none has been, and this is
-tracked as \oi{10}.
+Four bodies of work bear on this study. Claims below were checked against the
+source papers rather than their abstracts; the four we could obtain lawfully are
+read and verified, and the remainder are cited only for definitions we
+implement (\oi{10}).
+
+\paragraph{The dataset.} M100 ExaData~\citep{borghesi2023m100} publishes 49.9\,TB
+of holistic telemetry --- management, workload, facility and infrastructure ---
+from Marconi100 across two and a half years. Two of its derived releases matter
+here. The unsupervised anomaly-detection set aggregates \emph{IPMI} metrics into
+15-minute periods with average, standard deviation, minimum and maximum per
+window, plus a Nagios-derived label; our common analysis grid matches that
+choice, though we apply it to all nine families rather than IPMI alone. The
+thermal-hazard set reduces sampling from 20 seconds to 10 minutes, and the
+authors state the trade explicitly: that rate ``will preserve room- and
+node-level thermal transient but discard computing-component-level ones''. That
+is a direct statement of what aggregation costs, and it applies to our results
+as much as to theirs (\oi{4}).
+
+\paragraph{What this telemetry is normally used for.} The dominant application
+is anomaly \emph{detection} rather than forecasting.
+\citet{borghesi2019anomaly} train per-node autoencoders on HPC monitoring data
+and report detecting previously unseen anomalies at accuracies between 88\% and
+96\%. Detection asks whether the present sample is unusual given a learned model
+of normal behaviour; forecasting asks what the next sample will be. The former
+can succeed on signals whose future values are not predictable at all, which is
+one reason the difficulty we measure has attracted little attention.
+
+\paragraph{Feature-based characterisation of time series.} Our method follows the
+tradition of describing a series by a fixed feature vector rather than by a
+fitted model. \citet{lubba2019catch22} reduce 4791 candidate features to 22 by
+selecting for classification performance and minimal redundancy across 93
+datasets, achieving a roughly 1000-fold reduction in computation for an average
+accuracy loss of 7\%, and covering linear and non-linear autocorrelation,
+successive differences, value distributions and outliers, and fluctuation
+scaling. Our profile is smaller and chosen for interpretability by mechanism
+rather than by classification performance, but the premise --- that a compact,
+model-free description captures much of what matters about a series --- is
+theirs.
+
+\paragraph{Capacity and forecast accuracy.} Our finding that heavier models do
+worse has a direct precedent outside HPC. \citet{zeng2023transformers} introduce
+one-layer linear models and report that they outperform sophisticated
+Transformer-based long-term forecasters ``in all cases, and often by a large
+margin'' across nine real-world datasets, arguing that permutation-invariant
+self-attention discards temporal ordering. Our result is the same shape in a
+different domain and at the opposite end of the complexity range: on this
+telemetry a persistence forecast beats gradient-boosted trees and neural
+networks at every horizon tested. Where they compare a linear model against
+Transformers, we find the useful baseline is simpler still.
+
+\paragraph{What we did not verify.} MASE~\citep{hyndman2006another}, permutation
+entropy~\citep{bandt2002permutation}, detrended fluctuation
+analysis~\citep{peng1994mosaic}, the Theta
+method~\citep{assimakopoulos2000theta} and dispersion
+entropy~\citep{rostaghi2016dispersion} are cited for definitions we implement
+and test against known-answer series. Their full texts are paywalled and were
+not read; no claim is made here about their findings beyond the definitions,
+and we do not attribute results to them.
 
 \section{Method}
 \label{sec:method}

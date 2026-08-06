@@ -4,11 +4,24 @@
 % literature/screening.csv, and its bibliographic fields (authors, year, venue,
 % DOI) were taken from Crossref or OpenAlex metadata rather than typed by hand.
 %
-% VERIFICATION STATUS. Metadata being correct is not the same as a CLAIM about
-% a paper being correct. No entry below has yet been checked by reading the
-% paper itself, so nothing in the manuscript may assert what one of these works
-% found, measured, or concluded until that check is done. This is tracked as
-% OI-10 and is a submission blocker.
+% VERIFICATION STATUS. Metadata being correct is not the same as a CLAIM about a
+% paper being correct, so each entry records whether its full text was read.
+%
+%   READ  borghesi2023m100     Nature open access
+%   READ  lubba2019catch22     arXiv:1901.10200
+%   READ  zeng2023transformers arXiv:2205.13504
+%   READ  borghesi2019anomaly  arXiv:1811.05269 (PREPRINT, not the AAAI version
+%                              of record; the AAAI PDF was not retrievable, and
+%                              the two may differ in detail)
+%
+%   DEFINITION-ONLY, full text paywalled and NOT read:
+%   hyndman2006another, bandt2002permutation, peng1994mosaic,
+%   assimakopoulos2000theta, rostaghi2016dispersion
+%
+% The five definition-only entries are cited for methods this codebase
+% implements and tests against known-answer series. The manuscript attributes no
+% finding to them. Every substantive claim about prior work in the related-work
+% section comes from one of the four papers actually read.
 
 % =====================================================================
 % The dataset under study

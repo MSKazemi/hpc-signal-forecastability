@@ -338,13 +338,31 @@ two largest.
 
 ---
 
-## OI-10 — Related-work claims are not verified against source PDFs `BLOCKING`
+## OI-10 — Related-work claims verified where the source was obtainable `IMPORTANT`
 
-> **The only remaining submission blocker.** The literature harvest returned 1,985 works and
-> `paper/refs.bib` carries correct metadata from Crossref and OpenAlex, but correct metadata is not
-> a checked claim. No cited paper has been read. The related-work section in `paper/paper.tex` is
-> therefore still a marked placeholder rather than prose written from titles and abstracts — which
-> would be exactly the kind of unverified assertion this study spent its effort avoiding elsewhere.
+> **Downgraded from BLOCKING.** Every substantive claim about prior work now comes from a paper
+> that was read in full.
+
+**Read and verified** — each claim in the related-work section is traceable to text in these:
+
+| work | source read | claim checked |
+|---|---|---|
+| M100 ExaData | Nature OA | 49.9 TB; anomaly set aggregates **IPMI only** to 15-minute windows; thermal set reduces 20 s → 10 min and states this "will preserve room- and node-level thermal transient but discard computing-component-level ones" |
+| catch22 | arXiv:1901.10200 | 4791 → 22 features, ~1000× computation reduction, 7% mean accuracy loss over 93 datasets |
+| Are Transformers Effective? | arXiv:2205.13504 | one-layer linear models beat Transformer forecasters "in all cases, and often by a large margin" over nine datasets |
+| Anomaly Detection using Autoencoders | arXiv:1811.05269 | 88–96% detection accuracy on unseen anomalies |
+
+**Caveat on the fourth.** Only the arXiv preprint was retrievable; the AAAI version of record was
+not. The two may differ, and the bibliography says so.
+
+**Not read, and cited only for definitions:** Hyndman & Koehler (MASE), Bandt & Pompe (permutation
+entropy), Peng et al. (DFA), Assimakopoulos & Nikolopoulos (Theta), Rostaghi & Azami (dispersion
+entropy). All five are paywalled. Each is implemented here and tested against series whose answers
+are known by construction, and the manuscript attributes no *finding* to any of them. Paywalls were
+not circumvented.
+
+**To close fully.** Obtain the five paywalled originals through institutional access and confirm
+the definitions as implemented, and replace the preprint with the AAAI version of record.
 
 No literature has been harvested yet. Every claim about prior work must be checked against the
 actual paper before it enters the manuscript; none has been. This item stays open until the
