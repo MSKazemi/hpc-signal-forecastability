@@ -115,6 +115,11 @@ features:
   permutation_entropy:
     order: 5
     delay: 1
+    # Ties are broken by index (the Bandt-Pompe convention) for the headline
+    # measure, and a second column breaks them at random. Quantisation makes
+    # ties the common case here and their prevalence varies by plugin, so the
+    # family ordering must be shown to survive the convention (OI-11).
+    tie_policies: ["index", "random"]
   sample_entropy:
     m: 2
     r_times_sd: 0.2
@@ -122,10 +127,28 @@ features:
     min_scale: 8
     max_scale_fraction: 0.25
   changepoints:
-    model: "rbf"
+    # Least-squares cost with a BIC penalty (sigma^2 * log n for one extra mean
+    # parameter), found by greedy binary segmentation. The pre-registration
+    # named an RBF kernel cost; the implemented cost is L2 because the quantity
+    # of interest is a MEAN SHIFT — an exogenous event moving the level — and a
+    # kernel cost also fires on changes in variance and shape, which are
+    # separately measured. Recorded here rather than silently substituted.
+    model: "l2"
     penalty: "bic"
-  stl:
-    robust: true
+  seasonal_decomposition:
+    # The pre-registration said STL. The implementation uses a period-mean
+    # decomposition (see measures.seasonal_strength): the two agree closely
+    # once the trend is removed, and STL over hundreds of thousands of series
+    # was not affordable. Stated because a config that claims STL while the
+    # code does something else misreports the method.
+    method: "period_mean"
+  spectral_estimator:
+    # Welch rather than the raw periodogram. The periodogram is not consistent
+    # -- its variance does not fall as the series grows -- so an entropy
+    # computed over its bins carries a noise floor that never shrinks and
+    # cannot support a between-family comparison. Changed after results
+    # existed; the periodogram remains available and both are reported.
+    method: "welch"
 
 # ---------------------------------------------------------------------------
 # Forecast protocol (Phase 4)

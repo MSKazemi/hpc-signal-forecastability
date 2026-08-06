@@ -60,7 +60,9 @@ def _is_degenerate(x: np.ndarray, minimum: int = 8) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def permutation_entropy(x: np.ndarray, order: int = 5, delay: int = 1) -> float:
+def permutation_entropy(
+    x: np.ndarray, order: int = 5, delay: int = 1, tie_policy: str = "index", seed: int = 0
+) -> float:
     """Normalised permutation entropy (Bandt & Pompe, 2002).
 
     Counts how evenly the orderings of successive ``order``-tuples are
@@ -70,17 +72,43 @@ def permutation_entropy(x: np.ndarray, order: int = 5, delay: int = 1) -> float:
     It is the natural first measure here because it depends only on the *rank*
     pattern of the samples, so it is invariant to the calibration and unit
     differences that separate an IPMI temperature from a Ganglia counter.
+
+    **Ties, and why the convention matters here (OI-11).** When samples inside a
+    window are equal, the ordering is not defined by the data and some rule must
+    supply one. The standard Bandt-Pompe convention breaks ties by index, which
+    manufactures a *consistent* ordering out of no information and so reports the
+    series as more ordered than it is. That bias is not incidental on this
+    dataset: IPMI temperatures are integers, Schneider registers are fixed-point,
+    and roughly a third of Vertiv and Schneider series are outright constant, so
+    ties are the common case and their prevalence varies systematically by
+    plugin — exactly the axis the study compares along.
+
+    ``tie_policy="random"`` breaks ties uniformly at random instead. A truly
+    tie-free series is unaffected; a tie-dominated one moves toward its honest
+    (higher) entropy. Both are computed in the pipeline so the family ordering
+    can be checked to survive the choice, which is what OI-11's fallback (c)
+    asks for. The default stays ``"index"`` so the headline measure remains the
+    one the literature defines.
     """
     x = _clean(x)
     n_vectors = x.size - (order - 1) * delay
     if _is_degenerate(x) or n_vectors < 2 or order < 2:
         return NAN
 
-    # Embed, then rank each row; identical values are broken by index order,
-    # which is the standard Bandt-Pompe convention.
     embedded = np.empty((n_vectors, order))
     for i in range(order):
         embedded[:, i] = x[i * delay : i * delay + n_vectors]
+
+    if tie_policy == "random":
+        # Perturb by less than the smallest non-zero gap, so only exact ties are
+        # reordered and the genuine ordering of distinct values is untouched.
+        finite_gaps = np.diff(np.unique(x))
+        smallest = float(finite_gaps.min()) if finite_gaps.size else 1.0
+        rng = np.random.default_rng(seed)
+        embedded = embedded + rng.uniform(0.0, smallest * 1e-6, size=embedded.shape)
+    elif tie_policy != "index":
+        raise ValueError(f"unknown tie_policy {tie_policy!r}; use 'index' or 'random'")
+
     patterns = np.argsort(embedded, axis=1, kind="stable")
 
     # Encode each permutation as an integer via mixed radix.
@@ -99,18 +127,44 @@ def permutation_entropy(x: np.ndarray, order: int = 5, delay: int = 1) -> float:
     return float(min(1.0, max(0.0, entropy / max_entropy)))
 
 
-def spectral_entropy(x: np.ndarray) -> float:
+def spectral_entropy(x: np.ndarray, method: str = "welch") -> float:
     """Normalised Shannon entropy of the power spectral density.
 
     Concentrated spectra (a strong daily cycle) score near 0; flat spectra
     (white noise) score near 1. This is the frequency-domain counterpart to
     permutation entropy and catches periodic structure that rank statistics
     can miss.
+
+    Its complement is exactly the forecastability index :math:`\\Omega` of
+    Goerg's Forecastable Component Analysis (JMLR W&CP 28(2), 2013): a flat
+    spectrum means nothing to extrapolate, a peaked one means a cycle a model
+    can lock onto. Reporting :math:`\\Omega` separately would add a column that
+    is ``1 - spectral_entropy`` and no information, so it is not computed.
+
+    **Estimator.** The raw periodogram is not a consistent estimator of the
+    spectral density — its variance does not shrink as the series grows, so
+    every bin stays noisy however much data there is, and an entropy computed
+    over those bins is biased toward the flat (unpredictable) end regardless of
+    the signal. Welch's method averages over overlapping segments and *is*
+    consistent, at the cost of frequency resolution. ``method="periodogram"``
+    keeps the original estimator so the two can be compared directly; the
+    default is Welch because a measure whose noise floor does not fall with
+    sample size cannot support a between-family comparison.
     """
     x = _clean(x)
     if _is_degenerate(x, minimum=16):
         return NAN
-    _, psd = sp_signal.periodogram(x - x.mean())
+    centred = x - x.mean()
+    if method == "welch":
+        # Eight segments is the usual variance/resolution compromise; with the
+        # 512-sample minimum length of this study that leaves >=128 points per
+        # segment, enough to resolve a daily cycle on the 15-minute grid.
+        nperseg = int(min(centred.size, max(64, centred.size // 8)))
+        _, psd = sp_signal.welch(centred, nperseg=nperseg)
+    elif method == "periodogram":
+        _, psd = sp_signal.periodogram(centred)
+    else:
+        raise ValueError(f"unknown method {method!r}; use 'welch' or 'periodogram'")
     psd = psd[psd > 0]
     if psd.size < 2:
         return NAN
@@ -413,3 +467,323 @@ def excess_kurtosis(x: np.ndarray) -> float:
     if np.std(d) == 0:
         return NAN
     return float(sp_stats.kurtosis(d, fisher=True, bias=False))
+
+
+# ---------------------------------------------------------------------------
+# direction: monotonicity and counters
+#
+# Nothing above distinguishes a monotone counter from any other signal, and
+# that gap is not academic: the linking analysis' worst held-out family is
+# ``error_counter``, where a drift forecast is near-perfect and no measure in
+# the suite anticipates it. Permutation entropy actively misleads here — a
+# monotone series uses exactly one ordering pattern and therefore scores 0,
+# the same value an alarm state scores for the opposite reason (OI-11).
+# ---------------------------------------------------------------------------
+
+
+def monotone_fraction(x: np.ndarray) -> float:
+    """How close the series is to moving in one direction only.
+
+    The larger of the up-share and down-share of first differences, ignoring
+    exact repeats. A monotone counter scores 1.0; a mean-reverting sensor sits
+    near 0.5. Repeats are excluded rather than counted as "not rising" so that
+    the measure separates *direction* from *stasis*, which
+    :func:`flat_run_fraction` already reports — otherwise a constant series
+    would score 1.0 here and be indistinguishable from a ramp.
+    """
+    x = _clean(x)
+    if x.size < 3:
+        return NAN
+    d = np.diff(x)
+    moving = d[d != 0.0]
+    if moving.size == 0:
+        return NAN
+    return float(max(np.mean(moving > 0), np.mean(moving < 0)))
+
+
+def reset_rate(x: np.ndarray, per: int = 1000) -> float:
+    """Counter wraps per ``per`` samples.
+
+    A reset is a downward step larger than the median upward step by a wide
+    margin, in a series that otherwise rises. Monitoring counters — bytes sent,
+    ECC errors, packets dropped — are trivially forecastable by drift *between*
+    resets and discontinuous *at* them, so the reset rate is the part of a
+    counter's behaviour a forecaster cannot see coming, and it is the natural
+    companion to :func:`monotone_fraction`.
+
+    Returns 0.0 for a series with no downward moves at all, and ``nan`` when the
+    series is not predominantly rising, where "reset" has no meaning.
+    """
+    x = _clean(x)
+    if x.size < 3:
+        return NAN
+    d = np.diff(x)
+    up, down = d[d > 0], d[d < 0]
+    if up.size == 0 or up.size < down.size:
+        return NAN
+    if down.size == 0:
+        return 0.0
+    # A wrap is far larger than an ordinary increment, not merely negative:
+    # noisy counters wobble by one unit without having reset.
+    threshold = 10.0 * float(np.median(up))
+    resets = int(np.count_nonzero(-down > threshold))
+    return float(resets * per / d.size)
+
+
+# ---------------------------------------------------------------------------
+# stationarity, formally tested
+#
+# "HPC signals are non-stationary" is the usual informal explanation for why
+# they forecast badly, and until now this study asserted it without a single
+# hypothesis test. ADF and KPSS have opposite nulls, so running both classifies
+# a series rather than merely scoring it — and the classification is what
+# decides whether *drift* or *persistence* is the right naive model, which is
+# precisely where the error_counter family breaks the linking analysis.
+# ---------------------------------------------------------------------------
+
+
+def adf_pvalue(x: np.ndarray, max_length: int = 4000) -> float:
+    """p-value of the Augmented Dickey-Fuller test. Null: a unit root.
+
+    Small p means the series is stationary around a constant. The lag order is
+    chosen by AIC rather than fixed, because cadence varies across this dataset
+    and a fixed lag would mean different things in different families.
+    """
+    from statsmodels.tsa.stattools import adfuller
+
+    x = _clean(x)
+    if _is_degenerate(x, minimum=32):
+        return NAN
+    if x.size > max_length:
+        x = x[:max_length]
+    try:
+        return float(adfuller(x, autolag="AIC")[1])
+    except Exception:
+        # Near-degenerate series make the regression singular. That is data,
+        # not an error: it flows through as nan like every other measure here.
+        return NAN
+
+
+def kpss_pvalue(x: np.ndarray, max_length: int = 4000) -> float:
+    """p-value of the KPSS test. Null: stationarity around a constant.
+
+    The complement of :func:`adf_pvalue`: *small* p here means non-stationary.
+    statsmodels interpolates from a lookup table and warns when the statistic
+    falls outside it; the warning is expected on this data and is suppressed,
+    since the clipped p-value is still on the correct side of any threshold
+    used to classify the series.
+    """
+    import warnings
+
+    from statsmodels.tsa.stattools import kpss
+
+    x = _clean(x)
+    if _is_degenerate(x, minimum=32):
+        return NAN
+    if x.size > max_length:
+        x = x[:max_length]
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return float(kpss(x, regression="c", nlags="auto")[1])
+    except Exception:
+        return NAN
+
+
+def stationarity_class(adf_p: float, kpss_p: float, alpha: float = 0.05) -> str:
+    """Four-cell classification from the ADF/KPSS pair.
+
+    Running the two tests together is more informative than either alone
+    because they disagree in interpretable ways:
+
+    ``stationary``
+        ADF rejects the unit root, KPSS does not reject stationarity.
+    ``unit_root``
+        ADF fails to reject, KPSS rejects — a random walk, where persistence is
+        the right baseline and differencing is required before modelling.
+    ``both_reject``
+        Both reject. Neither simple model fits: usually fractional integration
+        or a structural break masquerading as a trend.
+    ``inconclusive``
+        Neither rejects, which on short or heavily quantised series usually
+        means the tests are underpowered rather than that the series is benign.
+    """
+    if not (np.isfinite(adf_p) and np.isfinite(kpss_p)):
+        return "unknown"
+    adf_rejects = adf_p < alpha            # rejects "has a unit root"
+    kpss_rejects = kpss_p < alpha          # rejects "is stationary"
+    if adf_rejects and not kpss_rejects:
+        return "stationary"
+    if not adf_rejects and kpss_rejects:
+        return "unit_root"
+    if adf_rejects and kpss_rejects:
+        return "both_reject"
+    return "inconclusive"
+
+
+def changepoint_rate(x: np.ndarray, per: int = 1000, min_size: int = 10, max_splits: int = 40) -> float:
+    """Mean-shift changepoints per ``per`` samples, by binary segmentation.
+
+    Detected with a least-squares cost and a BIC-style penalty: a split is kept
+    only when it reduces the residual sum of squares by more than
+    ``sigma^2 * log(n)``, which is the standard penalty for one extra mean
+    parameter. ``sigma^2`` is estimated from the first differences rather than
+    from the series' own variance, so a series with genuine level shifts does
+    not inflate its own detection threshold and hide them.
+
+    This is the measure ``conf/experiment.yaml`` has declared under
+    ``features.changepoints`` since the pre-registration without ever being
+    implemented. Level shifts are the mechanism by which an exogenous event — a
+    job starting, a chiller switching stage — makes a signal unforecastable
+    from its own past, so the rate is a direct proxy for that class of
+    difficulty.
+    """
+    x = _clean(x)
+    if x.size < 4 * min_size or float(np.ptp(x)) == 0.0:
+        return NAN
+
+    n = x.size
+    # Robust noise scale: for white noise, var(diff) = 2 * var(x).
+    d = np.diff(x)
+    sigma2 = float(np.median(np.abs(d - np.median(d))) * 1.4826) ** 2 / 2.0
+    if sigma2 <= 0:
+        sigma2 = float(np.var(d)) / 2.0
+    if sigma2 <= 0:
+        return 0.0
+    penalty = sigma2 * math.log(n)
+
+    prefix = np.concatenate(([0.0], np.cumsum(x)))
+    prefix_sq = np.concatenate(([0.0], np.cumsum(x * x)))
+
+    def cost(a: int, b: int) -> float:
+        """Residual sum of squares of x[a:b] about its own mean."""
+        length = b - a
+        if length <= 0:
+            return 0.0
+        total = prefix[b] - prefix[a]
+        return float(prefix_sq[b] - prefix_sq[a] - total * total / length)
+
+    # Greedy binary segmentation: repeatedly split the segment that gains most.
+    segments = [(0, n)]
+    found = 0
+    while found < max_splits:
+        best_gain, best = 0.0, None
+        for a, b in segments:
+            if b - a < 2 * min_size:
+                continue
+            base = cost(a, b)
+            candidates = np.arange(a + min_size, b - min_size + 1)
+            if candidates.size == 0:
+                continue
+            # Vectorised cost of both halves for every admissible split point.
+            left_n = candidates - a
+            right_n = b - candidates
+            left_sum = prefix[candidates] - prefix[a]
+            right_sum = prefix[b] - prefix[candidates]
+            left_sq = prefix_sq[candidates] - prefix_sq[a]
+            right_sq = prefix_sq[b] - prefix_sq[candidates]
+            split_cost = (
+                left_sq - left_sum**2 / left_n + right_sq - right_sum**2 / right_n
+            )
+            gains = base - split_cost
+            index = int(np.argmax(gains))
+            if gains[index] > best_gain:
+                best_gain, best = float(gains[index]), (a, b, int(candidates[index]))
+        if best is None or best_gain <= penalty:
+            break
+        a, b, cut = best
+        segments.remove((a, b))
+        segments.extend([(a, cut), (cut, b)])
+        found += 1
+
+    return float(found * per / n)
+
+
+# ---------------------------------------------------------------------------
+# complexity measures that survive quantisation
+#
+# Permutation entropy correlates at +0.53 with the log number of distinct
+# values (OI-11): it partly measures a sensor's resolution rather than its
+# signal. Both measures below are indifferent to how finely the values are
+# represented, so they provide a check on that bias rather than repeating it.
+# ---------------------------------------------------------------------------
+
+
+def sample_entropy(
+    x: np.ndarray, m: int = 2, r_times_sd: float = 0.2, max_length: int = 2000
+) -> float:
+    """Sample entropy (Richman & Moorman, 2000): -log P(match extends).
+
+    The negative log probability that two windows which match to within a
+    tolerance ``r`` over ``m`` samples still match over ``m + 1``. Low values
+    mean the immediate past reliably determines what comes next.
+
+    Unlike permutation entropy it compares *amplitudes* rather than ranks, so
+    it does not invent an ordering out of tied values, and unlike approximate
+    entropy it excludes self-matches and so is not biased toward regularity on
+    short series. Declared in ``conf/experiment.yaml`` since the
+    pre-registration; implemented here.
+
+    Quadratic in series length, so the series is truncated to ``max_length``
+    consistently across the study.
+    """
+    x = _clean(x)
+    if _is_degenerate(x, minimum=m + 2):
+        return NAN
+    if x.size > max_length:
+        x = x[:max_length]
+    sd = float(np.std(x))
+    if sd == 0:
+        return NAN
+    tolerance = r_times_sd * sd
+
+    def matches(width: int) -> int:
+        count = x.size - width + 1
+        if count < 2:
+            return 0
+        windows = np.lib.stride_tricks.sliding_window_view(x, width)[:count]
+        total = 0
+        for i in range(count - 1):
+            distance = np.max(np.abs(windows[i + 1 :] - windows[i]), axis=1)
+            total += int(np.count_nonzero(distance <= tolerance))
+        return total
+
+    b = matches(m)
+    a = matches(m + 1)
+    if b == 0 or a == 0:
+        # No template match at either length: the tolerance is too tight for
+        # this series to say anything, which is not the same as zero entropy.
+        return NAN
+    return float(-math.log(a / b))
+
+
+def compression_ratio(x: np.ndarray, levels: int = 256, max_length: int = 16384) -> float:
+    """Compressed size of the 8-bit-quantised series, as a fraction of raw.
+
+    A crude but assumption-free complexity measure: a general-purpose
+    compressor finds repeated motifs, periodicity, and constant runs without
+    being told to look for any of them. Constant and step-like series compress
+    to almost nothing; white noise barely compresses at all, so the ratio runs
+    from near 0 (predictable) to near 1 (not).
+
+    Its value here is that it is *independent of the sensor's resolution* — the
+    series is requantised to a fixed 256 levels of its own range first, so a
+    16-bit and a 4-bit sensor with the same shape score alike. That makes it a
+    control on permutation entropy, which is contaminated by exactly that
+    difference (OI-11).
+    """
+    import zlib
+
+    x = _clean(x)
+    if x.size < 16:
+        return NAN
+    span = float(np.ptp(x))
+    if span == 0:
+        # A constant series is perfectly predictable; report the floor rather
+        # than nan so the constant-heavy families stay in the analysis.
+        return 0.0
+    if x.size > max_length:
+        x = x[:max_length]
+    scaled = np.clip(((x - x.min()) / span * (levels - 1)).round(), 0, levels - 1)
+    raw = scaled.astype(np.uint8).tobytes()
+    return float(len(zlib.compress(raw, 9)) / len(raw))

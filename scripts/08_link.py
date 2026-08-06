@@ -7,16 +7,23 @@ model-free predictability measures, cross-validated by **holding out an entire
 signal family**. Random splits would let the model memorise family quirks; a
 held-out family forces the relation to transfer to physics it has never seen.
 
-Three results are written, and the second and third exist to attack the first:
+Five results are written, and all but the first exist to attack it:
 
-1. ``link_cv.csv``          — leave-one-family-out R², against a mean baseline
+1. ``link_cv.csv``          — leave-one-family-out R², against a mean baseline,
+                              decomposed into level and ordering transfer
 2. ``link_importance.csv``  — which measures carry the weight
 3. ``link_ablation.csv``    — what survives when instrument covariates, or the
                               tie-biased entropy (OI-11), are removed
+4. ``link_correlations.csv``— cluster-robust marginal correlations (OI-9)
+5. ``link_null.csv``        — the same protocol run with *random* groups, so the
+                              claim "grouping by family breaks transfer" has a
+                              null distribution to be measured against
 
 If the R² collapses once the instrument covariates are dropped, then what the
 model learned was how the signal was *sampled*, not what it *is* — and the
-paper must say so.
+paper must say so. If random groups score no better than real families, then
+the family axis explains nothing and the headline is small-sample noise rather
+than a finding about signal physics.
 """
 
 from __future__ import annotations
@@ -38,6 +45,7 @@ from hsf.link.analysis import (  # noqa: E402
     feature_importance,
     leave_one_family_out,
     prepare,
+    random_group_null,
 )
 
 
@@ -48,6 +56,12 @@ def main() -> None:
     ap.add_argument("--sample", type=Path, default=paths.DERIVED / "sample.csv")
     ap.add_argument("--conf", type=Path, default=paths.CONF / "experiment.yaml")
     ap.add_argument("--horizon", type=int, default=None)
+    ap.add_argument(
+        "--null-draws",
+        type=int,
+        default=100,
+        help="random-group draws for the transfer null; 0 skips it",
+    )
     ap.add_argument(
         "--seasonal-tag",
         default="m1",
@@ -97,10 +111,29 @@ def main() -> None:
     print("\n=== leave-one-family-out R^2 (held-out family) ===")
     print(cv.round(3).to_string(index=False))
     if len(cv):
+        # The mean alone is not a summary of this distribution: one bad fold can
+        # dominate it while most folds are positive. Report the shape.
         print(
             f"\nmean R^2: forest {cv.r2_forest.mean():.3f}, ridge {cv.r2_ridge.mean():.3f}, "
             f"baseline {cv.r2_baseline.mean():.3f}"
         )
+        print(
+            f"forest R^2 distribution: median {cv.r2_forest.median():.3f}, "
+            f"range [{cv.r2_forest.min():.3f}, {cv.r2_forest.max():.3f}], "
+            f"{int((cv.r2_forest > 0).sum())}/{len(cv)} families positive"
+        )
+        print("\n=== transfer decomposed: level vs ordering ===")
+        print(
+            f"mean R^2 given the true level: {cv.r2_level_corrected.mean():.3f} "
+            f"(vs {cv.r2_forest.mean():.3f} without it)"
+        )
+        rho = cv.spearman_within.dropna()
+        if len(rho):
+            print(
+                f"within-family Spearman rho: median {rho.median():.3f}, "
+                f"{int((rho > 0).sum())}/{len(rho)} folds positive, "
+                f"{int((cv.spearman_p < 0.05).sum())}/{len(cv)} significant at 0.05"
+            )
 
     # 2. Which measures matter.
     importance = feature_importance(data, feature_columns=full, seed=seed)
@@ -142,6 +175,28 @@ def main() -> None:
     correlation_table.to_csv(paths.TABLES / "link_correlations.csv", index=False)
     print("\n=== cluster-robust correlation with skill (clustered by metric) ===")
     print(correlation_table.round(3).to_string(index=False))
+
+    # 5. The null the headline needs: is the family axis actually what breaks
+    #    transfer, or would any fifteen-way split of this data look the same?
+    null = random_group_null(
+        data, feature_columns=full, family="origin", n_draws=args.null_draws, seed=seed
+    )
+    null.to_csv(paths.TABLES / "link_null.csv", index=False)
+    if len(null) and len(cv):
+        observed = cv.r2_forest.mean()
+        # One-sided: how often does an arbitrary grouping do as badly as the
+        # real families? A small p means the family axis carries real structure.
+        p_value = float((null.mean_r2 <= observed).mean())
+        print(f"\n=== random-group null ({len(null)} draws, sizes matched to real families) ===")
+        print(
+            f"null mean R^2: median {null.mean_r2.median():.3f}, "
+            f"2.5-97.5% [{null.mean_r2.quantile(0.025):.3f}, {null.mean_r2.quantile(0.975):.3f}]"
+        )
+        print(f"observed (real families): {observed:.3f}   p = {p_value:.3f}")
+        print(
+            f"null families positive: median {null.frac_positive.median():.2f} "
+            f"vs observed {float((cv.r2_forest > 0).mean()):.2f}"
+        )
 
     print(f"\nWrote link_*.csv to {paths.TABLES}")
 

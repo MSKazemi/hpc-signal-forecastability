@@ -314,6 +314,87 @@ and confirm the family ordering survives.
 **Fallback.** Report permutation entropy only *conditioned on* quantisation, never as a raw
 between-family comparison.
 
+> **(c) is now implemented, and so is the instrument the diagnosis called for.**
+> `permutation_entropy(..., tie_policy="random")` breaks ties uniformly at random instead of by
+> index, and both columns are computed for every series, so the family ordering can be checked
+> against the convention rather than assumed to survive it. A known-answer test pins the mechanism:
+> an 8-level staircase scores below 0.2 under the index convention and strictly higher under random
+> ties, while a tie-free series is unmoved to within 0.01.
+>
+> The deeper half of this entry — that entropy cannot tell a monotone counter from an alarm state,
+> because both score 0.000 for opposite structural reasons — is not a tie problem and is not fixed
+> by (c). It is fixed by measuring the thing entropy is blind to. Four measures now do:
+> `monotone_fraction` and `reset_rate` see direction, `adf_pvalue`/`kpss_pvalue` classify the series
+> as stationary or unit-root, and `compression_ratio` gives a complexity score that is invariant to
+> sensor resolution by construction (the series is requantised to a fixed 256 levels first). On
+> synthetic archetypes the separation is clean: a counter scores `monotone_fraction` 1.00 and
+> classifies `unit_root`; an alarm scores 0.50 and classifies `stationary`. Both still score
+> permutation entropy near zero, which is now a *documented* property of that measure rather than a
+> confound in the study.
+
+---
+
+## OI-13 — The linking protocol had no positive control `BLOCKING`
+
+**Why it matters.** The study's headline is a negative result, and a negative result carries an
+objection that no amount of care about the *data* can answer: the *protocol* may be incapable of
+recovering a relation that is really there. Leave-one-family-out cross-validation over nineteen
+features and a thousand series is not self-evidently powerful enough. Until it has been shown to
+find a portable law when one exists, "we find no portable law" is not distinguishable from "this
+procedure finds no portable law in anything".
+
+Two facts already on record make the concern concrete rather than hypothetical. `log_step_s` sat in
+the design matrix with a correlation of −1.8×10⁻¹⁶ and a permutation importance of exactly 0.0 —
+the signature of a column with no variance, which is what regridding every series onto a common
+15-minute grid guarantees. And `dfa_alpha`, a measure the literature says should carry information
+about memory, came out with r = −0.05 and importance 0.001. Both are consistent with a protocol
+that is not seeing what is there.
+
+**What is being done.** `scripts/11_protocol_control.py` runs three arms of synthetic data through
+the identical pipeline — the same measure functions, the same forecast harness, the same
+`leave_one_family_out`:
+
+| arm | construction | required outcome |
+|---|---|---|
+| `portable` | one AR(1) difficulty law, every family drawing persistence from the same range | R² clearly positive |
+| `disjoint` | the same law, each family in its own non-overlapping parameter band | R² collapses, within-family ordering survives |
+| `no_law` | skill permuted across series | R² ≈ 0, never positive |
+
+The `disjoint` arm is the hypothesis for what M100 does, and it exists to show what an
+extrapolation failure looks like when the underlying law is known to be real.
+
+**To settle.** Run all three at the study's own scale — the fold sizes matter, and a pilot at 70
+series is uninformative because a random forest with twenty features on fifty-six training rows
+overfits whatever the truth is. If the `portable` arm does not recover the law at full scale, every
+negative result in this study is uninterpretable until the protocol is repaired.
+
+---
+
+## OI-14 — Two measures were computed with estimators that cannot support the comparison `IMPORTANT`
+
+**Why it matters.** A between-family comparison requires an estimator whose noise falls as the
+series grows. Two did not have one.
+
+**Spectral entropy used a raw periodogram.** The periodogram is not a consistent estimator of the
+spectral density: its variance does not decrease with sample size, so every bin stays noisy however
+long the series, and an entropy computed over those bins carries a noise floor that never shrinks.
+That is a plausible reason `spectral_entropy` came out nearly inert (r = 0.076, importance
+−0.0003) for a quantity that is, up to sign, exactly the forecastability index Ω of Goerg's
+Forecastable Component Analysis — a measure with a published claim to do this job. The default is
+now Welch's method, which averages over overlapping segments and is consistent; the periodogram
+remains selectable so the two can be compared. A known-answer test asserts the point directly:
+across ten white-noise realisations, the Welch estimate's spread is strictly smaller.
+
+**Noting what this does *not* license.** Ω itself was not added as a feature, because
+`1 - spectral_entropy` is Ω and a second column would carry no information. The methods survey in
+`PREDICTABILITY_METHODS.md` originally proposed adding it and was wrong to.
+
+**Still open.** `dfa_alpha` remains unexplained. DFA-1 removes only a linear trend, so on a monotone
+counter or a job-driven ramp the exponent is dominated by the trend and means nothing, and the
+implementation reports no goodness-of-fit for the log-log regression that produces it — so a series
+where the scaling law simply does not hold is indistinguishable from one where it does. Report the
+fit quality, and add DFA-2 before drawing any conclusion from the measure's inertness.
+
 ---
 
 ## OI-12 — Skill was measured on a subset `RESOLVED`

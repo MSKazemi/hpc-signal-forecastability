@@ -1,0 +1,437 @@
+Why Are HPC Monitoring Signals Hard to Forecast?
+Intrinsic Predictability Across Eight Telemetry Families of a Tier-0 Supercomputer
+Mohsen Seyedkazemi Ardebili
+mohsen.seyedkazemi@gmail.com
+Working draft — August 6, 2026
+Abstract
+Operational telemetry from high-performance computing systems resists forecasting to
+a degree that is widely reported anecdotally and rarely explained. The usual response is to
+increase model capacity. We test the opposite position: that the difficulty is largelyintrinsic
+to the signals, differs systematically between signal families, and can be quantified without
+fitting any forecaster. Half of that position survives our own test and half does not, and we
+report both.
+Using the public M100 ExaData release from CINECA’s Marconi100 Tier-0 supercom-
+puter, we characterise telemetry from eight heterogeneous plugin families — out-of-band
+sensors, operating-system counters, scheduler aggregates, alarm states, facility power, room-
+level electrical measurement, cooling-plant control registers and air handlers, and exogenous
+weather — collected from the same machine over the same 31 months. (A ninth family, per-
+job submission records, is collected but is event-structured rather than a time series, and
+is excluded; oi-8.) The families are held fixed in system, workload and period while signal
+type varies. For each series we compute model-free predictability measures spanning en-
+tropy, periodicity, long memory, non-stationarity, and quantisation, and separately measure
+the forecast skill achieved by a tiered suite ranging from naive baselines to gradient-boosted
+trees under a strictly causal rolling-origin protocol.
+We report four findings. First, the monitoring infrastructure is itself non-stationary: of
+573 distinct (plugin, metric) pairs observed across the campaign, only 104 are present in
+every month, and those are exactly the out-of-band sensor set. Second, a large share of
+what is monitored carries no forecastable information at all — the fraction of series that
+never change over a month ranges from 64.8% of alarm-state signals to 8.4% of out-of-band
+sensors — so any benchmark that averages over such series reports the composition of its
+sample as much as the skill of its models. Third, model capacity does not help: measured
+against a same-step naive baseline, median skill by tier at a one-hour horizon runs 0.115
+for naive forecasters, -0.064 for statistical ones, -0.327 for neural networks and -0.613 for
+gradient-boosted trees, and beyond three hours every tier is worse than repeating the last
+value.
+Fourth, and contrary to our hypothesis, the predictability measures transfer across signal
+families only weakly and inconsistently. Individually they correlate with skill — repetition
+fraction at r = +0 .37 (cluster-robust 95% CI [0.26, 0.49] over 261 metric clusters), permu-
+tation entropy at−0.334. Jointly, a model trained on every family except one predicts the
+held-out family’s skill with a medianR2 of +0.06 across 15 families, positive for 9 of them
+but ranging from+0.25 down to−1.88. The mean,−0.16, is pulled below zero by the worst
+few families rather than describing the distribution. The failure is localised rather than
+general: it is monotone counters, which a drift forecaster predicts almost perfectly for rea-
+sons no predictability feature anticipates. What the measures mostly capture is how often
+a signal holds still, which is closer to a restatement of forecastability than an explanation of
+it.
+1
+1 Introduction
+Operators of large computing facilities increasingly collect holistic telemetry, and increasingly
+want to predict it rather than merely react to it: thermal headroom, power capping, and
+proactive maintenance are all forecasting problems. Reported accuracy on this class of signal
+is nonetheless poor relative to standard time-series benchmarks, and the literature generally
+treats that as a modelling deficiency to be fixed with a stronger model.
+We invert the question. Instead of asking which model does best, we ask how much pre-
+dictability is present at all, measured independently of any forecaster, and whether that mea-
+surement predicts the skill a forecaster subsequently achieves. If it does, “HPC telemetry is
+hard to forecast” becomes a quantity with named causes rather than folklore.
+Our contributions are: (i) a quantitative census of signal heterogeneity across a 31-month
+Tier-0 monitoring campaign, including the instability of the monitoring system itself; (ii) a
+model-free predictability profile for each of 1402 series drawn from eight plugin families; (iii)
+a strictly causal, scale-free forecast benchmark over four model tiers on the same series; and
+(iv) a test of whether the first predicts the second, cross-validated by holding out entire signal
+families.
+The headline result is negative, and we report it as such: the measures do not transfer
+across families. We regard this as the more useful outcome than a confirmation would have
+been, because the experiment was constructed so that the hypothesis could fail, and identifying
+which part fails narrows what a future predictability theory has to explain.
+2 Background
+2.1 Marconi100 and the ExaData campaign
+Marconi100 was a Tier-0 system at CINECA comprising 980 IBM Power AC922 nodes, each
+with two 16-core POWER9 processors and four NVIDIA V100 accelerators. The ExaData
+campaign published holistic telemetry for the machine from March 2020 to September 2022,
+collected through the ExaMon framework and released as Hive-partitioned Parquet, one archive
+per month.
+We catalogue every partition of all 31 archives — 10504 partitions holding roughly 55 billion
+rows — and extract the subset the study requires. Because node-level series of one metric are
+highly redundant, and because nodes sharing a rack, inlet air and workload are not independent
+samples (oi-9), analysis runs on a fixed panel of 96primary entities — nodes, cooling devices
+or PLC panels — whose membership is a stable hash of the entity label. The hash sees only
+the label, so panel membership is identical across every metric and month and cross-metric
+comparisons land on the same physical machines. Families keyed by a secondary tag yield
+proportionally more series than the cap suggests: Nagios identifies a series by nodeand check
+description and reaches 1484 distinct series in a single metric-month, where the 96 bound applies
+to the node dimension alone.
+2.2 The nine plugin families
+The value of this dataset for the present question is that it holds the system fixed while varying
+the signal. Table 1 summarises the families and the mechanism that generates each.
+3 Related work
+Four bodies of work bear on this study. Claims below were checked against the source papers
+rather than their abstracts; the four we could obtain lawfully are read and verified, and the
+remainder are cited only for definitions we implement (oi-10).
+2
+Table 1: Telemetry families and their generating mechanisms. Nominal cadences are as docu-
+mented by the dataset; measured cadences differ substantially for some families (§5.1).
+Family Measures Nominal cadence Generating mechanism
+IPMI BMC sensors: temperature, power, fans 20s thermal diffusion, quantised
+Ganglia OS and GPU counters 20–300s, irregular software instrumentation
+SLURM cluster scheduler aggregates 5–10s user submission behaviour
+Nagios service and hardware alarm states 15min discrete state machine
+Job table per-job submission records event-driven not a time series ( oi-8)
+Schneider liquid-cooling PLC registers 20s closed-loop control
+Logics room power, PUE, chillers — facility aggregation
+Vertiv air-handling units 10s closed-loop control
+Weather outdoor conditions 10min exogenous
+The dataset. M100 ExaData [Borghesi et al., 2023] publishes 49.9TB of holistic telemetry
+— management, workload, facility and infrastructure — from Marconi100 across two and a
+half years. Two of its derived releases matter here. The unsupervised anomaly-detection set
+aggregates IPMI metrics into 15-minute periods with average, standard deviation, minimum
+and maximum per window, plus a Nagios-derived label; our common analysis grid matches that
+choice, though we apply it to all nine families rather than IPMI alone. The thermal-hazard set
+reduces sampling from 20 seconds to 10 minutes, and the authors state the trade explicitly: that
+rate “will preserve room- and node-level thermal transient but discard computing-component-
+level ones”. That is a direct statement of what aggregation costs, and it applies to our results
+as much as to theirs (oi-4).
+What this telemetry is normally used for. Thedominantapplicationisanomaly detection
+rather than forecasting. Borghesi et al. [2019] train per-node autoencoders on HPC monitoring
+data and report detecting previously unseen anomalies at accuracies between 88% and 96%.
+Detectionaskswhetherthepresentsampleisunusualgivenalearnedmodelofnormalbehaviour;
+forecasting asks what the next sample will be. The former can succeed on signals whose future
+values are not predictable at all, which is one reason the difficulty we measure has attracted
+little attention.
+F eature-based characterisation of time series. Our method follows the tradition of de-
+scribing a series by a fixed feature vector rather than by a fitted model. Lubba et al. [2019]
+reduce 4791 candidate features to 22 by selecting for classification performance and minimal
+redundancy across 93 datasets, achieving a roughly 1000-fold reduction in computation for an
+average accuracy loss of 7%, and covering linear and non-linear autocorrelation, successive dif-
+ferences, value distributions and outliers, and fluctuation scaling. Our profile is smaller and
+chosen for interpretability by mechanism rather than by classification performance, but the
+premise — that a compact, model-free description captures much of what matters about a
+series — is theirs.
+Capacity and forecast accuracy . Our finding that heavier models do worse has a direct
+precedent outside HPC. Zeng et al. [2023] introduce one-layer linear models and report that they
+outperform sophisticated Transformer-based long-term forecasters “in all cases, and often by a
+large margin” across nine real-world datasets, arguing that permutation-invariant self-attention
+discards temporal ordering. Our result is the same shape in a different domain and at the
+opposite end of the complexity range: on this telemetry a persistence forecast beats gradient-
+boosted trees and neural networks at every horizon tested. Where they compare a linear model
+against Transformers, we find the useful baseline is simpler still.
+3
+What we did not verify . MASE [Hyndman and Koehler, 2006], permutation entropy [Bandt
+and Pompe, 2002], detrended fluctuation analysis [Peng et al., 1994] and the Theta method [As-
+simakopoulos and Nikolopoulos, 2000] are cited for definitions we implement and test against
+known-answer series. Their full texts are paywalled and were not read; no claim is made here
+about their findings beyond the definitions, and we attribute no result to them. Three of the
+four works we did read were obtained as preprints rather than the versions of record we cite,
+which we note as a limitation of the audit rather than of the works.
+4 Method
+4.1 Campaign census
+Tar members are read header-only, so cataloguing all 31 archives costs seconds and no disk.
+For each extracted partition we then compute a per-series census: one row per (plugin, metric,
+entity, month) recording sample count, observed cadence, cadence jitter, gap fraction, coverage,
+missingness, value range, distinct-value count and quantisation step. The census is deliberately
+descriptive — it contains no predictability measure and no model — so that a later finding of
+between-family differences cannot be an artefact of having looked first.
+4.2 The entity panel
+Node-level series of one metric are highly redundant — nodes share racks, inlet air, cooling
+zones, and workload — and are therefore not independent samples (oi-9). Analysis runs on a
+fixed panel of 96 entities whose membership is a stable hash of the entity label under the project
+seed. Because the hash sees only the label, panel membership is identical across every metric
+and every month, so cross-metric comparisons are made on the same physical machines rather
+than on a fresh random slice.
+4.3 A-priori signal taxonomy
+Labels are assigned from the plugin and metricname alone, before any predictability is mea-
+sured, so that a finding of between-family differences cannot be a relabelling of the result it is
+meant to explain.
+4.4 Model-free predictability measures
+Each series receives a profile of measures grouped by the mechanism it probes: entropy and
+complexity (permutation entropy, spectral entropy, Lempel–Ziv); periodicity (dominant-period
+strength, daily seasonal strength); memory (autocorrelation at lag one and one day, detrended
+fluctuation exponent); stationarity (block-mean drift ratio, variance ratio); and shape (jump
+fraction, repetition fraction, longest flat run, excess kurtosis of differences). Each returnsnan
+rather than raising on degenerate input, because constant series are the common case here rather
+than an edge case (§5.2). Implementations are validated against series whose answers are known
+by construction — a ramp, a sine, white noise, a random walk — in the accompanying test
+suite.
+No single measure suffices, and the reason is instructive. Permutation entropy assigns 0.000
+both to monotone counters, which have some 17850 distinct values, and to alarm states, which
+have two: a monotone series has exactly one ordering pattern and a step function almost
+never changes. Both are easy to forecast, for opposite structural reasons, and entropy cannot
+distinguish them (oi-11).
+4
+4.5 Forecast protocol
+Skill is measured under rolling-origin evaluation with strict causality asserted per split. Errors
+are scaled by MASE with a denominator computed from the training window only; scaling by
+test-window statistics is the most common silent leak in forecasting benchmarks and would
+compress exactly the between-tier differences this study reads. The seasonal period is fixed per
+series a priori from its own cadence, with a non-seasonal robustness check (oi-5).
+MASE is undefined where the in-sample seasonal-naive error vanishes. This is not an edge
+case here: a substantial share of control-plane series are constant (§5.1), and near-perfectly
+periodic windows yield denominators at the level of floating-point noise. Such series are reported
+as undefined rather than assigned a spuriously large score.
+4.6 Linking analysis
+Skill is regressed on the predictability profile, cross-validated by holding out anentire signal
+family. A random split would let the model memorise family-specific quirks and report a
+flattering R2; a held-out family forces the relation to transfer to signal physics it has never seen,
+which is what a portable difficulty law would require. EveryR2 is reported against a train-mean
+baseline, so “the measures explain skill” means better than knowing nothing rather than better
+than zero. Three ablations exist to attack the headline: dropping the instrument covariates,
+keeping only them, and removing the tie-biased entropy. Marginal correlations use a cluster
+bootstrap over metrics, because series of one metric across nodes are not independent (oi-9).
+5 Results
+5.1 The monitoring system is not stationary
+Across the 31-month campaign we catalogue 10504 metric partitions comprising 573 distinct
+(plugin, metric) pairs. Only 104 — all of them IPMI — are present in every month. Ganglia’s
+metric count runs 0, 33, 73, 49, 157, 177 and is not monotonic; SLURM’s runs 20, 2, 0, 2, 36;
+Schneider first appears in 21-03 and Vertiv and Weather in 21-04.
+Figure 1 shows the pattern. Any claim compared across months therefore confounds signal
+behaviour with changes to the instrument, and we restrict cross-month statements accordingly
+(oi-2).
+5.2 Much of what is monitored never changes
+Across 159506 series the fraction constant over a whole month varies by more than a factor of
+seven between families: 64.8% for Nagios, 47.0% Schneider, 42.9% Logics and Ganglia, 33.1%
+Vertiv, against 10.5% SLURM, 8.4% IPMI and 0% Weather. MASE is undefined for such series
+— the seasonal-naive denominator is zero — and they are excluded from skill statistics and
+counted rather than silently dropped. Figure 2 gives the breakdown.
+5.3 Regularity and interruption are different properties
+Sampling irregularity is routinely summarised by the coefficient of variation of the inter-sample
+interval. On this data that measure is misleading: it reports IPMI as the least regular family,
+contradicting the dataset documentation. IPMI in fact haszeroseries with a jittery interval and
+100% with a gap exceeding a hundred times the median — its sampling is exact and universally
+interrupted, and the rare enormous gaps dominate the coefficient of variation. Ganglia is the
+only family whose interval genuinely wanders (81% of series), which is what the documentation
+reports. We therefore measure jitter and interruption separately (oi-1); Figure 3 shows that
+the two are nearly orthogonal.
+5
+20-03 20-06 20-09 20-12 21-03 21-06 21-09 21-12 22-03 22-06 22-09
+month
+ipmi
+ganglia
+slurm
+nagios
+vertiv
+schneider
+logics
+weather
+grey = plugin not collected that month
+Metrics collected per plugin per month
+100
+101
+102
+distinct metrics (log)
+Figure 1: Metrics collected per plugin per month. Grey marks a plugin absent that month; the
+colour scale is logarithmic.
+5.4 Forecast skill and model capacity
+Figure 4 shows median skill by tier and horizon on 1082 series, pooling every model within a
+tier. Capacity does not buy skill: the naive tier leads at every horizon and the best single model
+throughout is persistence.
+Pooling penalises a tier for containing a deliberately weak member, so we also compare each
+tier’s best model per series, paired across series. That comparison is both more favourable to
+the sophisticated tiers and more conclusive against them. At a one-hour horizon the per-series
+best is 0.945 (IQR[0.70, 1.00]) for naive, 0.861 for statistical, 0.747 for boosted trees and 0.643
+for neural networks; a paired Wilcoxon test of naive against each other tier rejects equality at
+every horizon and by a wide margin (p < 10−20 against every tier at one hour, andp < 10−90
+against the neural tier). The ordering is not an artefact of pooling. At a 24-hour horizon
+even the best naive model is negative (-0.284), so the claim that no tier beats a same-step
+naive forecast holds at a day but not at three hours, where the per-series best naive model
+still scores 0.880. One qualification remains: the ordering depends on the baseline. Against a
+daily-seasonal denominator the statistical tier leads instead, and boosted trees overtake naive
+at the shortest horizon (oi-5).
+5.5 Control: is this an artefact of recursive forecasting?
+Every learned model above forecasts recursively — predict a step, append it, predict again
+— so error compounds, and the collapse of the learned tiers at long horizons might be that
+compounding rather than anything about the signals. This is the most plausible alternative
+explanation for the result, so we test it rather than caveat it. We fit the same gradient-boosted
+learner two ways on the same series, origins and horizons: recursively, anddirectly, trained to
+map a lag window onto the valueh steps ahead in a single prediction.
+Recursion does cost a great deal — forecasting directly recovers between 0.07 and 0.85 of
+skill depending on horizon, most at one and three hours — so the caveat was warranted. But
+the conclusion is unaffected: the direct model still loses to persistence at every horizon tested
+(Table 2). The capacity result is a property of the problem, not of the recursion.
+6
+0 10 20 30 40 50 60 70 80
+series that are constant over the month (%)
+weather
+ipmi
+slurm
+vertiv
+ganglia
+logics
+schneider
+nagios
+0.0%  (n=180)
+8.4%  (n=39,936)
+10.5%  (n=3,102)
+33.1%  (n=2,700)
+42.9%  (n=23,408)
+42.9%  (n=45,684)
+47.0%  (n=6,213)
+64.8%  (n=38,283)
+Much of what is monitored never changes
+Figure 2: Share of series that never change over a month, by family.
+Table 2: Median skill (1−MASE, same-step denominator) for the same learner forecast recur-
+sively and directly, against persistence, on 341 matched (series, origin) windows.
+Horizon Persistence GBT recursive GBT direct
+15min 0.767 0.320 0.392
+1h 0.499 -0.223 0.114
+3h -0.023 -1.029 -0.259
+24h -2.758 -3.692 -2.838
+5.6 Predictability does not transfer across families
+Individuallythemeasures correlatewith skill. Cluster-robustover261metricclusters, repetition
+fraction reaches r = +0 .37 (95% CI [0.26, 0.49]) and permutation entropy −0.33 (95% CI
+[−0.44, −0.22]).
+Jointly they generalise only weakly. Holding out each of 15 families in turn gives amedian
+out-of-sample R2 of +0.06 for a random forest, positive for 9 of the 15, and ranging from+0.25
+(scheduler state) to−1.88 (monotone error counters). The mean over families,−0.16, is pulled
+below zero by the few negative cases; excluding the worst it is−0.04. Reporting the mean alone
+would describe the tail rather than the relation.
+The failure is therefore specific rather than general, and its cause is identifiable. Mono-
+tone counters are forecast almost exactly by a drift model, because they increase steadily by
+construction; nothing in a predictability profile built from entropy, periodicity, memory and
+stationarity anticipates that a signal will be trivial for one particular extrapolator. A profile
+that included a monotonicity or unit-root term would likely absorb the case, which is a concrete
+direction rather than a general indictment. What the evidence supports is that the measures
+transfer weakly and inconsistently, not that no portable notion of difficulty exists.
+The result is not an artefact of instrumentation. Removing the sampling and quantisation
+covariates slightlyimproves the model (−0.14 against −0.16), and using them alone collapses
+it (−15.0). Whatever the measures capture, it is not how the data was sampled — which is the
+7
+0 20 40 60 80 100
+share of series affected (%)
+ipmi
+nagios
+schneider
+vertiv
+weather
+slurm
+logics
+ganglia
+0%
+100%
+0%
+18%
+0%
+53%
+0%
+61%
+0%
+11%
+11%
+92%
+42%
+31%
+81%
+75%
+Regular sampling and uninterrupted sampling are different properties
+interval jitter  (IQR/median > 0.01) outage  (largest gap > 100x median)
+Figure 3: Interval jitter and outage incidence are different properties. IPMI has no jittery series
+and no uninterrupted ones.
+conditioning test oi-1 called for.
+6 Threats to validity
+The full register is maintained inOPEN_ISSUES.md and each item is cited from the text above.
+The load-bearing ones are:
+oi-1 Ganglia’s sampling irregularity confounds instrumentation with signal physics. Sampling
+regularity is therefore carried as a covariate and reported separately.
+oi-2 The monitoring system changes over the campaign.
+oi-6 No neural tier has been run; no claim of the form “not even deep models help” is licensed.
+oi-7 The error floor is an estimate with a known bias direction, not an information-theoretic
+bound.
+oi-11 Permutation entropy is biased downward by quantisation, and quantisation varies by
+family, so entropy is interpreted only alongside the measured quantisation step.
+7 Conclusion
+We set out to show that the difficulty of forecasting HPC telemetry is an intrinsic, measurable
+property of the signals. Half of that survives. Difficulty is not a modelling deficiency: across
+four tiers spanning naive baselines to neural networks, more capacity produced less skill, and
+beyond three hours nothing beat repeating the last value.
+8
+naive statistical ml neural
+model tier
+−6
+−5
+−4
+−3
+−2
+−1
+0
+median skill (1 - MASE)
+0 = a same-step naive forecast
+15 min
+1 h
+3 h
+1 d
+Does more model capacity buy skill?
+horizon
+15 min 1 h 3 h 1 d
+Figure 4: Median skill by model tier. Zero is a same-step naive forecast.
+The other half does not, though less completely than a single summary statistic suggests.
+Measures that correlate with skill within the pooled data transfer to an unseen family only
+weakly: a median held-outR2 of +0.06, positive for 9 of 15 families and negative for the rest.
+Forecast difficulty here is closer to a family-specific property than a portable law, and the
+measure carrying most of the signal — how often a series holds still — is nearer a restatement
+than an explanation.
+The one clean failure is instructive. Monotone counters defeat the model entirely because a
+drift forecaster handles them almost exactly, and no measure of entropy, periodicity, memory
+or stationarity predicts that a signal will be trivial for one specific extrapolator. That suggests
+the profile is missing a term rather than that the programme is misconceived, and it is a cheap
+thing for future work to test.
+For operators the practical reading is narrower than we hoped but still useful: on this data,
+at these horizons, a persistence forecast is a strong default — significantly better than every
+heavier tier we tested, at every horizon — and the burden of proof lies with any claim that a
+larger model improves on it.
+Disclosure
+The author is a co-author of the M100 ExaData dataset paper [Borghesi et al., 2023] analysed
+here. No part of this study was performed as part of that data-collection campaign, and the
+analysis uses only the public release.
+9
+Data and code availability
+All code, the versioned literature query set, the screening table, and every derived table are
+at https://github.com/MSKazemi/hpc-signal-forecastability. The underlying measure-
+ments are the public M100 ExaData release [Borghesi et al., 2023]. Results reproduce from the
+committed derived tables without downloading raw data.
+References
+Vassilis Assimakopoulos and Konstantinos Nikolopoulos. The theta model: a decomposition
+approach to forecasting. International Journal of Forecasting, 16(4):521–530, 2000. doi:
+10.1016/S0169-2070(00)00066-2.
+Christoph Bandt and Bernd Pompe. Permutation entropy: A natural complexity measure for
+time series. Physical Review Letters, 88(17):174102, 2002. doi: 10.1103/PhysRevLett.88.
+174102.
+Andrea Borghesi, Andrea Bartolini, Michele Lombardi, Michela Milano, and Luca Benini.
+Anomaly detection using autoencoders in high performance computing systems. InProceed-
+ings of the AAAI Conference on Artificial Intelligence, volume 33, pages 9428–9433, 2019.
+doi: 10.1609/aaai.v33i01.33019428.
+Andrea Borghesi, Carmine Di Santi, Martin Molan, Mohsen Seyedkazemi Ardebili, Alessio
+Mauri, MassimilianoGuarrasi, DanielaGaletti, MirkoCestari, FrancescoBarchi, LucaBenini,
+Francesco Beneventi, and Andrea Bartolini. M100 ExaData: a data collection campaign on
+the CINECA’s Marconi100 Tier-0 supercomputer. Scientific Data, 10(1):288, 2023. doi:
+10.1038/s41597-023-02174-3.
+Rob J. Hyndman and Anne B. Koehler. Another look at measures of forecast accuracy.Inter-
+national Journal of Forecasting, 22(4):679–688, 2006. doi: 10.1016/j.ijforecast.2006.03.001.
+Carl H. Lubba, Sarab S. Sethi, Philip Knaute, Simon R. Schultz, Ben D. Fulcher, and Nick S.
+Jones. catch22: CAnonical Time-series CHaracteristics. Data Mining and Knowledge Dis-
+covery, 33(6):1821–1852, 2019. doi: 10.1007/s10618-019-00647-x.
+C.-K. Peng, S. V. Buldyrev, S. Havlin, M. Simons, H. E. Stanley, and A. L. Goldberger. Mosaic
+organization of DNA nucleotides.Physical Review E, 49(2):1685–1689, 1994. doi: 10.1103/
+PhysRevE.49.1685. Introduces detrended fluctuation analysis.
+Ailing Zeng, Muxi Chen, Lei Zhang, and Qiang Xu. Are transformers effective for time series
+forecasting? In Proceedings of the AAAI Conference on Artificial Intelligence, volume 37,
+pages 11121–11128, 2023. doi: 10.1609/aaai.v37i9.26317.
+10

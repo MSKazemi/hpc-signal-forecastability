@@ -87,19 +87,19 @@ skill by tier at a one-hour horizon runs \num{0.115} for naive forecasters,
 \num{-0.613} for gradient-boosted trees, and beyond three hours every tier is
 worse than repeating the last value.
 
-Fourth, and contrary to our hypothesis, the predictability measures transfer
-across signal families only weakly and inconsistently. Individually they
-correlate with skill --- repetition fraction at \(r=+0.37\) (cluster-robust
-95\% CI \([0.26, 0.49]\) over \num{261} metric clusters), permutation entropy
-at \(-0.334\). Jointly, a model trained on every family except one predicts the
-held-out family's skill with a median \(R^2\) of \(+0.06\) across \num{15}
-families, positive for \num{9} of them but ranging from \(+0.25\) down to
-\(-1.88\). The mean, \(-0.16\), is pulled below zero by the worst few families
-rather than describing the distribution. The failure is localised rather than
-general: it is monotone counters, which a drift forecaster predicts almost
-perfectly for reasons no predictability feature anticipates. What the measures
-mostly capture is how often a signal holds still, which is closer to a
-restatement of forecastability than an explanation of it.
+Fourth, and contrary to our hypothesis, the measures transfer across signal
+families in \emph{ordering} but not in \emph{level}. A model trained on every
+family except one ranks the held-out family's series correctly --- median
+within-family Spearman \(+0.40\), significant for \num{10} of \num{15}
+families and reaching \(+0.80\) --- while assigning the wrong absolute skill,
+which is what drives the raw \(R^2\) to a mean of \(-0.16\). Correcting the
+level bias moves it to a median of \(+0.11\), positive for \num{11} of
+\num{15}. A random-group null settles what this means: the same protocol run
+with arbitrary groups of matched size transfers easily (median \(R^2\)
+\(+0.33\) across draws, every group positive, \(p<0.001\) against the observed
+value over \num{100} draws), so the difficulty is specific to crossing family boundaries
+rather than a limitation of the protocol. Practically, the profile can rank
+which signals in an unfamiliar family will be harder, but not say how hard.
 \end{abstract}
 
 \section{Introduction}
@@ -284,12 +284,24 @@ cannot be a relabelling of the result it is meant to explain.
 
 \subsection{Model-free predictability measures}
 
-Each series receives a profile of measures grouped by the mechanism it probes:
-entropy and complexity (permutation entropy, spectral entropy, Lempel--Ziv);
-periodicity (dominant-period strength, daily seasonal strength); memory
-(autocorrelation at lag one and one day, detrended fluctuation exponent);
-stationarity (block-mean drift ratio, variance ratio); and shape (jump fraction,
-repetition fraction, longest flat run, excess kurtosis of differences). Each
+Each series receives a profile of \num{21} measures grouped by the mechanism it
+probes: entropy and complexity (permutation entropy, spectral entropy, sample
+entropy, Lempel--Ziv complexity, gzip compression ratio); periodicity
+(dominant-period strength, daily seasonal strength); memory (autocorrelation at
+lag one and one day, detrended fluctuation exponent); stationarity (block-mean
+drift ratio, variance ratio, ADF and KPSS \(p\)-values, changepoint rate); and
+shape (jump fraction, repetition fraction, monotone fraction, reset rate,
+excess kurtosis of differences). Four instrument covariates --- quantisation
+step, interval jitter, gap fraction and coverage --- are carried separately so
+their contribution can be isolated from signal structure.
+
+Two of these were added in response to an earlier failure of this study's own
+analysis rather than chosen a priori, and we flag the distinction. Monotone
+fraction and reset rate target counter-like signals, which a drift forecaster
+handles almost exactly and which the original profile could not distinguish from
+genuinely hard signals. They help but do not repair the case: error counters
+remain the worst-transferring family at a level-corrected \(R^2\) of
+\(-0.62\), against \(-1.88\) raw. Each
 returns \texttt{nan} rather than raising on degenerate input, because constant
 series are the common case here rather than an edge case
 (\S\ref{sec:constant}). Implementations are validated against series whose
@@ -318,6 +330,87 @@ not an edge case here: a substantial share of control-plane series are constant
 (\S\ref{sec:census}), and near-perfectly periodic windows yield denominators at
 the level of floating-point noise. Such series are reported as undefined rather
 than assigned a spuriously large score.
+
+\subsection{Pipeline and cost}
+\label{sec:pipeline}
+
+The study is an eleven-stage pipeline, each stage writing a committed artefact so
+that any stage can be re-run without repeating the ones before it
+(Table~\ref{tab:pipeline}). Bulk intermediates are sharded per partition and
+skipped when present, which makes an interrupted run resumable rather than
+repeatable.
+
+Two engineering constraints shaped the design and are worth stating because they
+bound what the study could attempt. The archives hold roughly \num{55} billion
+rows against a machine with \num{62}\,GB of memory shared with other workloads,
+so extraction is selective and concurrency is derived from a memory budget rather
+than the core count. And every worker pins its BLAS and OpenMP pools to a single
+thread: with pools left at their defaults, five worker processes on a 24-core
+machine request 120 threads and the forecast sweep runs roughly \num{90} times
+slower, with no error and no warning to indicate it. The full sweep takes minutes
+once pinned.
+
+\begin{table}[t]
+\centering
+\caption{Pipeline stages and their committed outputs.}
+\label{tab:pipeline}
+\small
+\begin{tabular}{llp{2.9cm}}
+\toprule
+\# & Stage & Output \\
+\midrule
+1 & inventory & partition catalogue (all 31 archives) \\
+2 & extract & selected partitions, disk-guarded \\
+3 & census & per-series descriptive table \\
+4 & taxonomy & a-priori labels + firing rule \\
+5 & sample & stratified series sample \\
+6 & features & \num{21}-measure profile per series \\
+7 & forecast & skill per (series, model, horizon, origin) \\
+8 & link & transfer, ablations, null control \\
+9 & figures & figures + backing CSV per figure \\
+10 & literature & screening table, bibliography \\
+11 & direct control & recursive vs direct forecasting \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Protocol and model settings, fixed before results existed.}
+\label{tab:hyper}
+\small
+\begin{tabular}{ll}
+\toprule
+Setting & Value \\
+\midrule
+Analysis grid & \num{15} min, common to all families \\
+Entity panel & \num{96} primary entities, hashed \\
+Horizons & 1, 4, 12, 96 steps (15\,min--24\,h) \\
+Rolling origins & 4 per series \\
+Training window & \num{1500} most-recent points \\
+Minimum series length & \num{512} points \\
+MASE denominators & same-step (primary), daily \\
+Boosted trees & 8/15, 24/60, 48/200 lags/iters \\
+Neural & 48--24 and 96--48 units, 40--60 iters \\
+Ridge AR & order 24, \(\lambda=10^{-6}\) \\
+Seed & \num{20230288} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Failure modes}
+\label{sec:failures}
+
+Degenerate input is the common case here, not an edge case, so the pipeline is
+specified for it. A constant series yields an undefined MASE (the seasonal-naive
+denominator is zero) and is excluded from skill statistics and counted; so is a
+near-perfectly periodic one, whose denominator is at the level of floating-point
+noise and would otherwise produce an arbitrary ratio of two rounding errors. Every
+measure returns \texttt{nan} rather than raising on a series that is too short or
+has no variation. A series whose value column never parses as numeric is recorded
+as non-numeric and dropped. Where a forecaster fails to fit, the failure is
+recorded against that (series, model, origin) and the sweep continues, so one
+ill-conditioned fit cannot destroy a run.
 
 \subsection{Linking analysis}
 
@@ -474,23 +567,51 @@ metric clusters, repetition fraction reaches \(r=+0.37\) (95\% CI
 \([0.26,0.49]\)) and permutation entropy \(-0.33\) (95\% CI
 \([-0.44,-0.22]\)).
 
-Jointly they generalise only weakly. Holding out each of \num{15} families in
-turn gives a \emph{median} out-of-sample \(R^2\) of \(+0.06\) for a random
-forest, positive for \num{9} of the \num{15}, and ranging from \(+0.25\)
-(scheduler state) to \(-1.88\) (monotone error counters). The mean over
-families, \(-0.16\), is pulled below zero by the few negative cases; excluding
-the worst it is \(-0.04\). Reporting the mean alone would describe the tail
-rather than the relation.
+Jointly, the raw picture looks poor: holding out each of \num{15} families in
+turn gives a mean out-of-sample \(R^2\) of \(-0.16\), a median of \(+0.06\),
+positive for \num{9} of the \num{15}, ranging from \(+0.25\) (scheduler state)
+to \(-1.88\) (monotone error counters). Reported alone that number is
+misleading in two ways, and Table~\ref{tab:transfer} shows why.
 
-The failure is therefore specific rather than general, and its cause is
-identifiable. Monotone counters are forecast almost exactly by a drift model,
-because they increase steadily by construction; nothing in a predictability
-profile built from entropy, periodicity, memory and stationarity anticipates
-that a signal will be trivial for one particular extrapolator. A profile that
-included a monotonicity or unit-root term would likely absorb the case, which is
-a concrete direction rather than a general indictment. What the evidence
-supports is that the measures transfer weakly and inconsistently, not that no
-portable notion of difficulty exists.
+\emph{Ordering transfers; level does not.} Within a held-out family the model
+ranks series correctly --- median Spearman \(+0.40\), significant at
+\(p<0.05\) for \num{10} of \num{15} families and reaching \(+0.80\) for
+memory, \(+0.72\) for CPU utilisation and \(+0.68\) for setpoint registers ---
+while placing that ranking at the wrong absolute level. \(R^2\) penalises the
+level error; Spearman does not. Removing the level bias raises the median
+\(R^2\) to \(+0.11\) and makes \num{11} of \num{15} families positive. The
+practical reading is that the profile can say which signals in an unfamiliar
+family will be harder than which, but not how hard any of them will be.
+
+\emph{The failure is specific to family boundaries.} Running the identical
+protocol with \emph{random} groups of matched size gives a median \(R^2\) of
+\(+0.33\) across draws (2.5--97.5\% range \([0.22, 0.38]\), mean \(+0.32\))
+with every group positive,
+against \(-0.16\) and \num{60}\% for the real families; over \num{100} draws
+no random grouping was as poor as the observed one (\(p<0.001\)). Arbitrary
+grouping therefore transfers easily, so the protocol is capable of transfer and
+the family axis carries real structure. Without this control the raw \(R^2\)
+would be equally consistent with a protocol that simply cannot generalise at
+all.
+
+\begin{table}[t]
+\centering
+\caption{Transfer to a held-out family, decomposed. Ordering transfers for most
+families; the absolute level does not, which is what the raw \(R^2\) measures.}
+\label{tab:transfer}
+\small
+\begin{tabular}{lrrr}
+\toprule
+ & mean & median & positive \\
+\midrule
+raw \(R^2\)                 & \num{-0.163} & \num{+0.061} & 9/15 \\
+level-corrected \(R^2\)     & \num{+0.009} & \num{+0.105} & 11/15 \\
+within-family Spearman     & ---          & \num{+0.397} & 10/15 at \(p<0.05\) \\
+\midrule
+random-group null (\(R^2\)) & \num{+0.319} & \num{+0.329} & 15/15 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 The result is not an artefact of instrumentation. Removing the sampling and
 quantisation covariates slightly \emph{improves} the model (\(-0.14\) against
@@ -526,20 +647,21 @@ is not a modelling deficiency: across four tiers spanning naive baselines to
 neural networks, more capacity produced less skill, and beyond three hours
 nothing beat repeating the last value.
 
-The other half does not, though less completely than a single summary statistic
-suggests. Measures that correlate with skill within the pooled data transfer to
-an unseen family only weakly: a median held-out \(R^2\) of \(+0.06\), positive
-for \num{9} of \num{15} families and negative for the rest. Forecast difficulty
-here is closer to a family-specific property than a portable law, and the
-measure carrying most of the signal --- how often a series holds still --- is
-nearer a restatement than an explanation.
+The other half holds in a weaker and more specific sense than we set out to
+show. The measures transfer to an unseen family in \emph{ordering} --- median
+within-family Spearman \(+0.40\), significant for \num{10} of \num{15}
+families --- but not in \emph{level}, which is what drives the raw \(R^2\)
+negative. A random-group null confirms the failure is about family boundaries
+specifically rather than about the protocol: arbitrary groups transfer easily
+(\(R^2 = +0.33\), \(p<0.001\) against the observed value). So there is a
+portable component of forecast difficulty, and it is ordinal.
 
-The one clean failure is instructive. Monotone counters defeat the model
-entirely because a drift forecaster handles them almost exactly, and no measure
-of entropy, periodicity, memory or stationarity predicts that a signal will be
-trivial for one specific extrapolator. That suggests the profile is missing a
-term rather than that the programme is misconceived, and it is a cheap thing for
-future work to test.
+That distinction is the practical result. An operator facing an unfamiliar
+signal family can use a model-free profile to decide which of its signals to
+attempt first, and cannot use it to predict the accuracy they will get. Whether
+the level is learnable from a small labelled sample of the new family, which
+would make the ordinal result directly actionable, is the obvious next
+experiment and one this study does not run.
 
 For operators the practical reading is narrower than we hoped but still useful:
 on this data, at these horizons, a persistence forecast is a strong default ---

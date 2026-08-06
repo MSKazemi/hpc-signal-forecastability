@@ -14,17 +14,25 @@ import numpy as np
 import pytest
 
 from hsf.features.measures import (
+    adf_pvalue,
     autocorrelation,
+    changepoint_rate,
+    compression_ratio,
     dfa_alpha,
     dominant_period_strength,
     drift_ratio,
     excess_kurtosis,
     flat_run_fraction,
     jump_fraction,
+    kpss_pvalue,
     lempel_ziv_complexity,
     longest_flat_run,
+    monotone_fraction,
     permutation_entropy,
+    reset_rate,
+    sample_entropy,
     seasonal_strength,
+    stationarity_class,
     spectral_entropy,
     variance_ratio,
 )
@@ -252,3 +260,157 @@ def test_measures_ignore_nan_padding(sine):
     padded[::97] = np.nan
     assert permutation_entropy(padded) == pytest.approx(permutation_entropy(sine), abs=0.2)
     assert not np.isnan(spectral_entropy(padded))
+
+
+# ---------------------------------------------------------------------------
+# direction: separating a counter from every other kind of signal
+#
+# These exist because the linking analysis' worst held-out family is
+# error_counter, and no measure in the original suite could see it coming.
+# ---------------------------------------------------------------------------
+
+
+def test_monotone_fraction_separates_counters_from_sensors(ramp, sine, noise, random_walk):
+    assert monotone_fraction(ramp) == pytest.approx(1.0)
+    # A mean-reverting signal moves up as often as down.
+    assert monotone_fraction(sine) == pytest.approx(0.5, abs=0.02)
+    assert monotone_fraction(noise) == pytest.approx(0.5, abs=0.05)
+    assert monotone_fraction(random_walk) == pytest.approx(0.5, abs=0.05)
+
+
+def test_monotone_fraction_is_not_fooled_by_a_constant(constant):
+    """A constant never moves, so it has no direction — nan, not 1.0.
+
+    Reporting 1.0 would make every setpoint register look like a counter, which
+    is the exact confusion this measure exists to prevent.
+    """
+    assert np.isnan(monotone_fraction(constant))
+
+
+def test_reset_rate_counts_counter_wraps():
+    counter = np.tile(np.arange(500, dtype=float), 4)  # 4 cycles => 3 wraps
+    rate = reset_rate(counter, per=1000)
+    assert rate == pytest.approx(3 * 1000 / (counter.size - 1), rel=0.01)
+
+
+def test_reset_rate_ignores_ordinary_noise_on_a_rising_counter(rng):
+    """A one-unit wobble is not a reset; only a wrap is."""
+    noisy = np.cumsum(rng.uniform(0.5, 1.5, N)) + rng.normal(0, 0.1, N)
+    assert reset_rate(noisy) == 0.0
+
+
+def test_reset_rate_undefined_for_a_signal_that_is_not_rising(sine):
+    assert np.isnan(reset_rate(sine))
+
+
+# ---------------------------------------------------------------------------
+# stationarity, formally tested
+# ---------------------------------------------------------------------------
+
+
+def test_stationarity_tests_separate_noise_from_a_random_walk(noise, random_walk):
+    # White noise: ADF rejects the unit root, KPSS does not reject stationarity.
+    assert stationarity_class(adf_pvalue(noise), kpss_pvalue(noise)) == "stationary"
+    # A random walk is the textbook unit-root process.
+    assert stationarity_class(adf_pvalue(random_walk), kpss_pvalue(random_walk)) == "unit_root"
+
+
+def test_stationarity_class_covers_every_cell():
+    assert stationarity_class(0.01, 0.50) == "stationary"
+    assert stationarity_class(0.50, 0.01) == "unit_root"
+    assert stationarity_class(0.01, 0.01) == "both_reject"
+    assert stationarity_class(0.50, 0.50) == "inconclusive"
+    assert stationarity_class(np.nan, 0.5) == "unknown"
+
+
+def test_changepoint_rate_finds_planted_level_shifts(rng):
+    """Three shifts planted; the estimate must be close, not exact."""
+    segments = [rng.normal(loc, 1.0, 1000) for loc in (0.0, 10.0, 0.0, 10.0)]
+    shifted = np.concatenate(segments)
+    found = changepoint_rate(shifted, per=1000) * shifted.size / 1000
+    assert 3 <= found <= 5
+
+
+def test_changepoint_rate_is_near_zero_for_stationary_noise(noise):
+    assert changepoint_rate(noise, per=1000) * noise.size / 1000 <= 2
+
+
+# ---------------------------------------------------------------------------
+# complexity measures that survive quantisation (the OI-11 control)
+# ---------------------------------------------------------------------------
+
+
+def test_sample_entropy_orders_signals_by_predictability(sine, noise, constant):
+    assert sample_entropy(sine) < sample_entropy(noise)
+    assert np.isnan(sample_entropy(constant))
+
+
+def test_compression_ratio_orders_signals_by_predictability(constant, sine, noise):
+    assert compression_ratio(constant) == 0.0
+    assert compression_ratio(sine) < compression_ratio(noise)
+    assert compression_ratio(noise) > 0.7
+
+
+def test_compression_ratio_is_blind_to_sensor_resolution(sine):
+    """The point of the measure: shape, not bit depth.
+
+    Permutation entropy correlates at +0.53 with the log number of distinct
+    values (OI-11). A measure used to control for that bias must not share it,
+    so the same waveform sampled coarsely and finely must score alike.
+    """
+    coarse = np.round(sine * 8) / 8
+    fine = np.round(sine * 4096) / 4096
+    assert compression_ratio(coarse) == pytest.approx(compression_ratio(fine), abs=0.1)
+
+
+# ---------------------------------------------------------------------------
+# tie handling (OI-11 fallback (c))
+# ---------------------------------------------------------------------------
+
+
+def test_random_tie_breaking_raises_entropy_of_a_tie_dominated_series():
+    """A staircase scores as ordered only because ties are broken by index.
+
+    The index convention invents a consistent ordering where the data supplies
+    none, so a coarsely quantised sensor scores as predictable when what was
+    measured is its resolution. Breaking ties at random removes the invention.
+    """
+    staircase = np.repeat(np.arange(8, dtype=float), N // 8)
+    assert permutation_entropy(staircase, tie_policy="index") < 0.2
+    assert permutation_entropy(staircase, tie_policy="random") > permutation_entropy(
+        staircase, tie_policy="index"
+    )
+
+
+def test_tie_policy_does_not_move_a_tie_free_series(noise):
+    assert permutation_entropy(noise, tie_policy="random") == pytest.approx(
+        permutation_entropy(noise, tie_policy="index"), abs=0.01
+    )
+
+
+def test_unknown_tie_policy_is_rejected(sine):
+    with pytest.raises(ValueError):
+        permutation_entropy(sine, tie_policy="nonsense")
+
+
+# ---------------------------------------------------------------------------
+# spectral estimator (Welch vs the inconsistent periodogram)
+# ---------------------------------------------------------------------------
+
+
+def test_welch_and_periodogram_agree_on_the_ordering(sine, noise):
+    for method in ("welch", "periodogram"):
+        assert spectral_entropy(sine, method=method) < spectral_entropy(noise, method=method)
+
+
+def test_welch_estimate_is_less_noisy_across_realisations(rng):
+    """Why the default changed: the periodogram's variance does not shrink.
+
+    Ten independent white-noise realisations should give ten similar
+    forecastability scores. The periodogram's do not converge as n grows, so
+    its spread across realisations is materially wider than Welch's.
+    """
+    draws = [rng.standard_normal(N) for _ in range(10)]
+    welch = np.std([spectral_entropy(d, method="welch") for d in draws])
+    periodogram = np.std([spectral_entropy(d, method="periodogram") for d in draws])
+    assert welch < periodogram

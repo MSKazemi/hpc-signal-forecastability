@@ -28,18 +28,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from hsf import paths  # noqa: E402
 from hsf.features.measures import (  # noqa: E402
+    adf_pvalue,
     autocorrelation,
+    changepoint_rate,
+    compression_ratio,
     dfa_alpha,
     dominant_period_strength,
     drift_ratio,
     excess_kurtosis,
     flat_run_fraction,
     jump_fraction,
+    kpss_pvalue,
     lempel_ziv_complexity,
     longest_flat_run,
+    monotone_fraction,
     permutation_entropy,
+    reset_rate,
+    sample_entropy,
     seasonal_strength,
     spectral_entropy,
+    stationarity_class,
     variance_ratio,
 )
 from hsf.io.series import load_series  # noqa: E402
@@ -67,10 +75,29 @@ def measure_series(values: np.ndarray, step_s: float, conf: dict) -> dict:
     day_steps = int(round(86400.0 / step_s)) if step_s and np.isfinite(step_s) else 0
     period, period_strength = dominant_period_strength(values)
 
+    # Both ADF and KPSS are needed for the four-cell classification; compute
+    # them once and reuse, since each refits a regression over the series.
+    adf_p = adf_pvalue(values)
+    kpss_p = kpss_pvalue(values)
+
+    sample_entropy_conf = features.get("sample_entropy", {"m": 2, "r_times_sd": 0.2})
+
     return {
         # entropy / complexity
         "permutation_entropy": permutation_entropy(values, order=pe["order"], delay=pe["delay"]),
+        # Same measure with the tie convention that does not invent an ordering
+        # out of equal values. Carried alongside rather than replacing it, so
+        # the family ordering can be shown to survive the choice (OI-11(c)).
+        "permutation_entropy_random_ties": permutation_entropy(
+            values, order=pe["order"], delay=pe["delay"], tie_policy="random"
+        ),
         "spectral_entropy": spectral_entropy(values),
+        "sample_entropy": sample_entropy(
+            values,
+            m=sample_entropy_conf["m"],
+            r_times_sd=sample_entropy_conf["r_times_sd"],
+        ),
+        "compression_ratio": compression_ratio(values),
         "lempel_ziv": lempel_ziv_complexity(values),
         # periodicity
         "dominant_period_steps": period,
@@ -86,9 +113,17 @@ def measure_series(values: np.ndarray, step_s: float, conf: dict) -> dict:
             min_scale=features["dfa"]["min_scale"],
             max_scale_fraction=features["dfa"]["max_scale_fraction"],
         ),
-        # stationarity
+        # stationarity — formally tested, not merely proxied
         "drift_ratio": drift_ratio(values),
         "variance_ratio_8": variance_ratio(values, lag=8),
+        "adf_pvalue": adf_p,
+        "kpss_pvalue": kpss_p,
+        "stationarity_class": stationarity_class(adf_p, kpss_p),
+        "changepoint_rate": changepoint_rate(values),
+        # direction — separates a monotone counter from every other signal, the
+        # distinction the original suite could not make (see error_counter)
+        "monotone_fraction": monotone_fraction(values),
+        "reset_rate": reset_rate(values),
         # shape
         "jump_fraction": jump_fraction(values),
         "flat_run_fraction": flat_run_fraction(values),
