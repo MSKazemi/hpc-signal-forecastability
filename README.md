@@ -7,9 +7,9 @@ supercomputer, using the public
 > **Status: the central hypothesis was tested and holds only weakly.**
 >
 > The study set out to show that forecast difficulty is predictable from model-free properties of
-> a signal. Across signal families it transfers weakly and inconsistently — positive for 7 of 13
-> families, near zero in median, and failing outright for one. The suite was built so this outcome
-> was reachable; see [What the study found](#what-the-study-found).
+> a signal. Across signal families it transfers weakly — positive for 9 of 15 families, near zero
+> in median. The suite was built so this outcome was reachable; see
+> [What the study found](#what-the-study-found).
 >
 > Read [`OPEN_ISSUES.md`](OPEN_ISSUES.md) before relying on anything. Twelve threats to validity
 > are registered there, most written before the results existed; no cited work has yet been
@@ -21,15 +21,14 @@ supercomputer, using the public
 
 ## What the study found
 
-**1. Predictability measures transfer across families only weakly.** Holding out each of 13
-families in turn gives a **median** out-of-sample R² of **+0.07**, positive for **7 of 13**, and
-ranging from +0.57 (setpoint/config registers) down to **−10.9** (monotone error counters). The
-mean, −0.82, is a report of that one worst family rather than a summary — excluding it, the mean
-is +0.03.
+**1. Predictability measures transfer across families only weakly.** Holding out each of 15
+families in turn (1,082 series) gives a **median** out-of-sample R² of **+0.06**, positive for
+**9 of 15**, ranging from +0.25 (scheduler state) down to **−1.88** (monotone error counters).
+The mean, −0.16, is pulled below zero by the few negative families.
 
-The failure is localised and explicable: monotone counters are forecast almost exactly by a drift
-model, and nothing in a profile of entropy, periodicity, memory and stationarity anticipates that
-a signal will be trivial for one specific extrapolator. That points at a missing term, not a
+The weakest case is explicable: monotone counters are forecast almost exactly by a drift model,
+and nothing in a profile of entropy, periodicity, memory and stationarity anticipates that a
+signal will be trivial for one specific extrapolator. That points at a missing term, not a
 misconceived programme.
 
 **2. Individual measures do correlate with skill — but the strongest one is nearly tautological.**
@@ -50,28 +49,29 @@ restatement than an explanation.
 
 | tier | h=1 (15 min) | h=4 (1 h) | h=12 (3 h) | h=96 (24 h) |
 |---|---:|---:|---:|---:|
-| naive | **0.477** | **0.127** | **−0.513** | **−3.241** |
-| statistical | 0.259 | −0.030 | −0.556 | −3.561 |
-| boosted trees | 0.078 | −0.500 | −1.422 | −4.022 |
-| neural (MLP) | 0.251 | −0.259 | −1.122 | −5.204 |
+| naive | **0.461** | **0.115** | **−0.494** | **−3.550** |
+| statistical | 0.230 | −0.064 | −0.546 | −3.921 |
+| boosted trees | 0.022 | −0.613 | −1.492 | −4.308 |
+| neural (MLP) | 0.227 | −0.327 | −1.257 | −5.746 |
 
 The naive tier is best at every horizon and the single best model throughout is `persistence`.
 Comparing each tier's *best* model per series — fairer, since pooling penalises a tier for holding
 a weak member — a paired Wilcoxon rejects equality of naive against every other tier at every
-horizon (p < 10⁻⁴ at one hour; p < 10⁻⁸ for the ML and neural tiers throughout). At 24 hours even
-the best naive model is negative (−0.153).
+horizon by a wide margin (p < 10⁻²⁰ at one hour; p < 10⁻⁹⁰ against the neural tier). At 24 hours
+even the best naive model is negative (−0.284).
 
 **Two caveats, both load-bearing:**
-- The ML and neural models forecast **recursively**, so error compounds over multi-step horizons.
-  Part of this gap is that modelling choice, not the signals; a direct multi-horizon model would
-  likely close some of it.
+- The ML and neural models forecast **recursively**, so error compounds. This was tested, not
+  assumed: `scripts/11_direct_control.py` fits the same learner directly per horizon. Recursion
+  costs a lot (at 1 h, −0.223 → **+0.114**), but the direct model still loses to persistence at
+  every horizon, so the conclusion does not rest on it. See `results/tables/direct_vs_recursive.csv`.
 - The ordering is specific to this baseline. Against the daily-seasonal denominator the same data
   puts *statistical* on top (0.892 / 0.838 / 0.755 / 0.303) and boosted trees above naive at h=1.
   Which baseline you scale by changes which family of models looks best — which is itself a
   finding about how this literature reports results.
 
 **4. This is not an instrumentation artefact.** Dropping the sampling and quantisation covariates
-*improves* the linking model slightly (−0.79 vs −0.82), and using them alone collapses it (−8.03).
+*improves* the linking model slightly (−0.14 vs −0.16), and using them alone collapses it (−15.0).
 Whatever the measures capture, it is not how the data was sampled — which is the conditioning test
 OI-1 called for.
 
@@ -138,7 +138,7 @@ a family they have never seen.
 ```
 
 The relation was tested by holding out whole families, so it had to generalise to unseen signal
-physics to count. It does so only weakly (median held-out R² = +0.07, positive for 7 of 13
+physics to count. It does so only weakly (median held-out R² = +0.06, positive for 9 of 15
 families). "HPC signals are hard to forecast" remains closer to a family-specific property than a
 measurable law.
 

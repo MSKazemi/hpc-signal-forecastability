@@ -82,20 +82,20 @@ over a month ranges from \num{64.8}\% of alarm-state signals to \num{8.4}\% of
 out-of-band sensors --- so any benchmark that averages over such series reports
 the composition of its sample as much as the skill of its models. Third, model
 capacity does not help: measured against a same-step naive baseline, median
-skill by tier at a one-hour horizon runs \num{0.127} for naive forecasters,
-\num{-0.030} for statistical ones, \num{-0.259} for neural networks and
-\num{-0.500} for gradient-boosted trees, and beyond three hours every tier is
+skill by tier at a one-hour horizon runs \num{0.115} for naive forecasters,
+\num{-0.064} for statistical ones, \num{-0.327} for neural networks and
+\num{-0.613} for gradient-boosted trees, and beyond three hours every tier is
 worse than repeating the last value.
 
 Fourth, and contrary to our hypothesis, the predictability measures transfer
 across signal families only weakly and inconsistently. Individually they
-correlate with skill --- repetition fraction at \(r=+0.40\) (cluster-robust
-95\% CI \([0.25, 0.53]\) over \num{156} metric clusters), permutation entropy
-at \(-0.345\). Jointly, a model trained on every family except one predicts the
-held-out family's skill with a median \(R^2\) of \(+0.07\) across \num{13}
-families, positive for \num{7} of them but ranging from \(+0.57\) down to
-\(-10.9\). The mean, \(-0.82\), is a report of that single worst family rather
-than a summary of the distribution. The failure is localised rather than
+correlate with skill --- repetition fraction at \(r=+0.37\) (cluster-robust
+95\% CI \([0.26, 0.49]\) over \num{261} metric clusters), permutation entropy
+at \(-0.334\). Jointly, a model trained on every family except one predicts the
+held-out family's skill with a median \(R^2\) of \(+0.06\) across \num{15}
+families, positive for \num{9} of them but ranging from \(+0.25\) down to
+\(-1.88\). The mean, \(-0.16\), is pulled below zero by the worst few families
+rather than describing the distribution. The failure is localised rather than
 general: it is monotone counters, which a drift forecaster predicts almost
 perfectly for reasons no predictability feature anticipates. What the measures
 mostly capture is how often a signal holds still, which is closer to a
@@ -401,7 +401,7 @@ no jittery series and no uninterrupted ones.}
 \subsection{Forecast skill and model capacity}
 \label{sec:skill}
 
-Figure~\ref{fig:tier} shows median skill by tier and horizon on \num{331}
+Figure~\ref{fig:tier} shows median skill by tier and horizon on \num{1082}
 series, pooling every model within a tier. Capacity does not buy skill: the
 naive tier leads at every horizon and the best single model throughout is
 persistence.
@@ -410,15 +410,15 @@ Pooling penalises a tier for containing a deliberately weak member, so we also
 compare each tier's \emph{best} model per series, paired across series. That
 comparison is both more favourable to the sophisticated tiers and more
 conclusive against them. At a one-hour horizon the per-series best is
-\num{0.957} (IQR \([0.69, 1.00]\)) for naive, \num{0.880} for statistical,
-\num{0.766} for boosted trees and \num{0.680} for neural networks; a paired
+\num{0.945} (IQR \([0.70, 1.00]\)) for naive, \num{0.861} for statistical,
+\num{0.747} for boosted trees and \num{0.643} for neural networks; a paired
 Wilcoxon test of naive against each other tier rejects equality at every horizon
-(\(p < 10^{-4}\) at one hour, \(p < 10^{-8}\) for the machine-learning and
-neural tiers at every horizon tested). The ordering is not an artefact of
+and by a wide margin (\(p < 10^{-20}\) against every tier at one hour, and
+\(p < 10^{-90}\) against the neural tier). The ordering is not an artefact of
 pooling. At a 24-hour horizon even the best naive model is negative
-(\num{-0.153}), so the claim that no tier beats a same-step naive forecast holds
+(\num{-0.284}), so the claim that no tier beats a same-step naive forecast holds
 at a day but not at three hours, where the per-series best naive model still
-scores \num{0.906}. One qualification remains: the ordering depends on the baseline. Against a
+scores \num{0.880}. One qualification remains: the ordering depends on the baseline. Against a
 daily-seasonal denominator the statistical tier leads instead, and boosted trees
 overtake naive at the shortest horizon (\oi{5}).
 
@@ -469,18 +469,18 @@ of the recursion.
 \subsection{Predictability does not transfer across families}
 \label{sec:linking}
 
-Individually the measures correlate with skill. Cluster-robust over \num{156}
-metric clusters, repetition fraction reaches \(r=+0.40\) (95\% CI
-\([0.25,0.53]\)), permutation entropy \(-0.35\), daily seasonal strength
-\(-0.24\) and excess kurtosis \(+0.23\).
+Individually the measures correlate with skill. Cluster-robust over \num{261}
+metric clusters, repetition fraction reaches \(r=+0.37\) (95\% CI
+\([0.26,0.49]\)) and permutation entropy \(-0.33\) (95\% CI
+\([-0.44,-0.22]\)).
 
-Jointly they generalise only weakly. Holding out each of \num{13} families in
-turn gives a \emph{median} out-of-sample \(R^2\) of \(+0.07\) for a random
-forest, positive for \num{7} of the \num{13}, and ranging from \(+0.57\)
-(setpoint and configuration registers) to \(-10.9\) (monotone error counters).
-The mean over families, \(-0.82\), is dominated by that single worst case:
-excluding it, the mean is \(+0.03\). Reporting the mean alone would describe
-one family rather than the relation.
+Jointly they generalise only weakly. Holding out each of \num{15} families in
+turn gives a \emph{median} out-of-sample \(R^2\) of \(+0.06\) for a random
+forest, positive for \num{9} of the \num{15}, and ranging from \(+0.25\)
+(scheduler state) to \(-1.88\) (monotone error counters). The mean over
+families, \(-0.16\), is pulled below zero by the few negative cases; excluding
+the worst it is \(-0.04\). Reporting the mean alone would describe the tail
+rather than the relation.
 
 The failure is therefore specific rather than general, and its cause is
 identifiable. Monotone counters are forecast almost exactly by a drift model,
@@ -493,8 +493,8 @@ supports is that the measures transfer weakly and inconsistently, not that no
 portable notion of difficulty exists.
 
 The result is not an artefact of instrumentation. Removing the sampling and
-quantisation covariates slightly \emph{improves} the model (\(-0.79\) against
-\(-0.82\)), and using them alone collapses it (\(-8.03\)). Whatever the
+quantisation covariates slightly \emph{improves} the model (\(-0.14\) against
+\(-0.16\)), and using them alone collapses it (\(-15.0\)). Whatever the
 measures capture, it is not how the data was sampled --- which is the
 conditioning test \oi{1} called for.
 
@@ -528,8 +528,8 @@ nothing beat repeating the last value.
 
 The other half does not, though less completely than a single summary statistic
 suggests. Measures that correlate with skill within the pooled data transfer to
-an unseen family only weakly: a median held-out \(R^2\) of \(+0.07\), positive
-for \num{7} of \num{13} families and catastrophic for one. Forecast difficulty
+an unseen family only weakly: a median held-out \(R^2\) of \(+0.06\), positive
+for \num{9} of \num{15} families and negative for the rest. Forecast difficulty
 here is closer to a family-specific property than a portable law, and the
 measure carrying most of the signal --- how often a series holds still --- is
 nearer a restatement than an explanation.
