@@ -37,6 +37,7 @@ from hsf.features.measures import (
     seasonal_strength,
     spectral_entropy,
     stationarity_class,
+    symbolic_markov_accuracy,
     symbolic_persistence_accuracy,
     variance_ratio,
 )
@@ -542,3 +543,31 @@ def test_ceiling_is_biased_low_and_the_direction_is_documented(rng):
 
 def test_symbolic_accuracy_is_one_for_a_constant(constant):
     assert symbolic_persistence_accuracy(constant) == 1.0
+
+
+def test_markov_beats_persistence_where_a_transition_structure_exists(rng):
+    """A cycling signal is trivial for Markov and impossible for persistence.
+
+    This is the test that makes the headroom claim meaningful: a gap between
+    persistence and the ceiling is only evidence of unclaimed predictability if
+    some estimator can actually claim it.
+    """
+    cycle = np.tile(np.arange(4.0), 500)  # 0,1,2,3,0,1,2,3,...
+    assert symbolic_persistence_accuracy(cycle) == pytest.approx(0.0, abs=0.01)
+    assert symbolic_markov_accuracy(cycle) > 0.95
+
+
+def test_markov_does_not_beat_persistence_on_a_pure_random_walk(rng):
+    """Where no transition structure exists, it must not manufacture accuracy."""
+    walk = np.cumsum(rng.standard_normal(3000))
+    assert symbolic_markov_accuracy(walk) <= symbolic_persistence_accuracy(walk) + 0.1
+
+
+def test_markov_accuracy_respects_the_ceiling_direction(rng):
+    """Still bounded by the same information limit, up to the estimator's bias."""
+    p, states, n = 0.9, 4, 4000
+    seq = np.zeros(n)
+    for t in range(1, n):
+        seq[t] = seq[t - 1] if rng.random() < p else rng.integers(0, states)
+    _, ceiling, _ = predictability_ceiling(seq)
+    assert symbolic_markov_accuracy(seq) <= ceiling + 0.05

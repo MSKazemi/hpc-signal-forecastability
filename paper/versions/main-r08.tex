@@ -1,0 +1,1161 @@
+% Why Are HPC Monitoring Signals Hard to Forecast?
+% Working draft — arXiv format, venue not yet chosen.
+%
+% Build: make paper   (pdflatex + bibtex; latexmk is not installed on the
+% development machine, so the Makefile chains the passes explicitly)
+%
+% Every number in this document must be traceable to a committed table under
+% results/tables/ or data/derived/. Placeholders are marked \needsresult so
+% they are impossible to miss in the compiled PDF.
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{natbib}
+
+% Number and unit helpers.
+%
+% siunitx is deliberately NOT used. It is absent from a minimal TeX Live
+% install, and a paper that will not compile without an extra package is a
+% reproducibility problem for exactly the readers most likely to try. These do
+% the little this document actually needs.
+\newcommand{\num}[1]{#1}
+\newcommand{\unit}[2]{#1\,#2}
+\newcommand{\unitrange}[3]{#1--#2\,#3}
+
+% Marks a value that has not been computed yet. Deliberately loud.
+\newcommand{\needsresult}[1]{\textcolor{red}{\textbf{[#1]}}}
+% Cites an entry in OPEN_ISSUES.md, keeping paper and register in sync.
+\newcommand{\oi}[1]{\textsc{oi-#1}}
+
+\title{Rank for Free, Calibrate with Twenty:\\
+       \large Transferring Forecast-Difficulty Estimates Across
+       Eight HPC Telemetry Families}
+
+\author{Mohsen Seyedkazemi Ardebili\\
+        \small \texttt{mohsen.seyedkazemi@gmail.com}}
+
+\date{Working draft --- \today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Operational telemetry from high-performance computing systems resists
+forecasting to a degree that is widely reported anecdotally and rarely
+explained. The usual response is to increase model capacity. We test the
+opposite position: that the difficulty is largely \emph{intrinsic to the
+signals}, differs systematically between signal families, and can be quantified
+without fitting any forecaster. It largely survives our own test, but only under
+a criterion we did not start with, and establishing that required validating the
+test itself against synthetic data with a known answer.
+
+Using the public M100 ExaData release from CINECA's Marconi100 Tier-0
+supercomputer, we characterise telemetry from eight heterogeneous plugin
+families --- out-of-band sensors, operating-system counters, scheduler
+aggregates, alarm states, facility power, room-level electrical measurement,
+cooling-plant control registers and air handlers, and exogenous weather ---
+collected from the same machine over the same 31 months. (A ninth family,
+per-job submission records, is collected but is event-structured rather than a
+time series, and is excluded; \oi{8}.) The families are held
+fixed in system, workload and period while signal type varies.
+For each series we compute model-free predictability measures spanning entropy,
+periodicity, long memory, non-stationarity, and quantisation, and separately
+measure the forecast skill achieved by a tiered suite ranging from naive
+baselines to gradient-boosted trees under a strictly causal rolling-origin
+protocol.
+
+We report five findings. First, the monitoring infrastructure is itself
+non-stationary: of \num{573} distinct (plugin, metric) pairs observed across the
+campaign, only \num{104} are present in every month, and those are exactly the
+out-of-band sensor set. Second, a large share of what is monitored carries no
+forecastable information at all --- the fraction of series that never change
+over a month ranges from \num{64.8}\% of alarm-state signals to \num{8.4}\% of
+out-of-band sensors --- so any benchmark that averages over such series reports
+the composition of its sample as much as the skill of its models. Third, model
+capacity does not help: measured against a same-step naive baseline, median
+skill by tier at a one-hour horizon runs \num{0.115} for naive forecasters,
+\num{-0.064} for statistical ones, \num{-0.327} for neural networks and
+\num{-0.613} for gradient-boosted trees, and beyond three hours every tier is
+worse than repeating the last value.
+
+Fourth, the measures do transfer to signal families they have never seen, but
+in \emph{ordering} far more than in \emph{level}. A model trained on every
+family except one ranks the held-out family's series correctly --- median
+within-family Spearman \(+0.52\), positive in \emph{all} \num{15} families and
+significant for \num{10} --- and beats the best family-blind
+predictor of skill in \num{13} of \num{15} families, by a median \num{21}\%
+reduction in error. Two families fall below that baseline, and only one
+substantively: monotone error counters at \(-0.68\), with thermal marginally
+negative at \(-0.01\). The substantive failure is the counters, which a drift
+forecast predicts almost exactly and which no model-free measure anticipates.
+
+Fifth, and separating the two readings of the capacity result, we estimate each
+series' information-theoretic ceiling --- entropy rate by a Lempel-Ziv
+estimator, then maximum predictability by Fano's inequality --- and compare it
+to what persistence achieves on the same alphabet. The families split cleanly.
+Error counters, system metadata, alarm states and setpoint registers carry
+\num{0.03}--\num{0.34} bits per step and persistence already achieves \num{0.99}
+or better: no model can improve them. The other nine families carry
+\num{1}--\num{3} bits per step, of which persistence leaves \num{12} to \num{31}
+percentage points of next-step accuracy unclaimed. So ``hard to forecast'' names
+two different situations, and only the first is a property of the signals.
+Two caveats travel with this. The ceiling is an estimate rather than a bound,
+and its error changes sign across the entropy range --- we calibrate it against
+sources of known rate and find it bounded by \(\pm\num{0.05}\) over the range
+these families occupy, which is well inside the headroom reported. And the
+headroom, though real, is not easily reached: a first-order Markov predictor on
+the same symbols claims none of it, scoring below persistence in \num{13} of
+\num{17} families. The unclaimed structure is therefore not in first-order
+symbol transitions, which narrows where it can be.
+
+Two controls establish that this is a property of the data rather than of the
+method, and a third shows why the choice of criterion decides the answer. The
+identical pipeline recovers a synthetic portable law at \(R^2=+0.25\), matching
+an oracle given the true generating parameter, and correctly finds nothing when
+skill is permuted. Running the real protocol with arbitrary groups of matched
+size transfers easily (median \(R^2\) \(+0.36\), every group positive,
+\(p<0.001\) over \num{100} draws), so the difficulty is specific to crossing
+family boundaries. Yet the raw \(R^2\) of the real data is \(-0.17\), which is
+\emph{worse} than the \(-0.07\) of the permuted arm containing no relation at
+all --- because \(R^2\) is scored against an oracle that already knows the
+held-out family's mean skill, and its denominator collapses on families whose
+series are alike. Practically, a model-free profile can rank which signals in an
+unfamiliar family will be harder, and estimate how hard far better than nothing,
+but not as well as knowing the family.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+Operators of large computing facilities increasingly collect holistic telemetry,
+and increasingly want to \emph{predict} it rather than merely react to it:
+thermal headroom, power capping, and proactive maintenance are all forecasting
+problems. Reported accuracy on this class of signal is nonetheless poor relative
+to standard time-series benchmarks, and the literature generally treats that as
+a modelling deficiency to be fixed with a stronger model.
+
+We invert the question. Instead of asking which model does best, we ask how much
+predictability is present at all, measured independently of any forecaster, and
+whether that measurement predicts the skill a forecaster subsequently achieves.
+If it does, ``HPC telemetry is hard to forecast'' becomes a quantity with named
+causes rather than folklore.
+
+Our contributions are: (i) a quantitative census of signal heterogeneity across
+a 31-month Tier-0 monitoring campaign, including the instability of the
+monitoring system itself; (ii) a model-free predictability profile for each of
+\num{1402} series drawn from eight plugin families; (iii) a strictly causal,
+scale-free forecast benchmark over four model tiers on the same series; and
+(iv) a test of whether the first predicts the second, cross-validated by holding
+out entire signal families; and (v) a per-family estimate of the
+information-theoretic ceiling on next-step accuracy, which separates families
+that are at their limit from families whose predictability our models fail to
+extract.
+
+The answer is a qualified yes, and the qualification took two controls and a
+change of criterion to establish. The measures transfer to families they have
+never seen --- strongly in ordering, partially in level --- but under the
+statistic we first reported, grouped cross-validated \(R^2\), the same data
+looks like a flat null. That statistic scores against an oracle which already
+knows the held-out family's mean, and it degenerates on families whose series
+are alike. We report the correction as a finding in its own right
+(\S\ref{sec:linking}), because grouped cross-validation summarised by \(R^2\) is
+a common design and telemetry families are routinely homogeneous.
+
+\section{Background}
+\label{sec:background}
+
+\subsection{Marconi100 and the ExaData campaign}
+
+Marconi100 was a Tier-0 system at CINECA comprising 980 IBM Power AC922 nodes,
+each with two 16-core POWER9 processors and four NVIDIA V100 accelerators. The
+ExaData campaign published holistic telemetry for the machine from March 2020 to
+September 2022, collected through the ExaMon framework and released as
+Hive-partitioned Parquet, one archive per month.
+
+We catalogue every partition of all 31 archives --- \num{10504} partitions
+holding roughly \num{55} billion rows --- and extract the subset the study
+requires. Because node-level series of one metric are highly redundant, and
+because nodes sharing a rack, inlet air and workload are not independent
+samples (\oi{9}), analysis runs on a fixed panel of \num{96} \emph{primary}
+entities --- nodes, cooling devices or PLC panels --- whose membership is a
+stable hash of the entity label. The hash sees only the label, so panel
+membership is identical across every metric and month and cross-metric
+comparisons land on the same physical machines. Families keyed by a secondary
+tag yield proportionally more series than the cap suggests: Nagios identifies a
+series by node \emph{and} check description and reaches \num{1484} distinct
+series in a single metric-month, where the \num{96} bound applies to the node
+dimension alone.
+
+\subsection{The nine plugin families}
+\label{sec:families}
+
+The value of this dataset for the present question is that it holds the system
+fixed while varying the signal. Table~\ref{tab:families} summarises the
+families and the mechanism that generates each.
+
+\begin{table}[t]
+\centering
+\caption{Telemetry families and their generating mechanisms. Nominal cadences
+are as documented by the dataset; measured cadences differ substantially for
+some families (\S\ref{sec:census}).}
+\label{tab:families}
+\small
+\begin{tabular}{llll}
+\toprule
+Family & Measures & Nominal cadence & Generating mechanism \\
+\midrule
+IPMI      & BMC sensors: temperature, power, fans & \unit{20}{s} & thermal diffusion, quantised \\
+Ganglia   & OS and GPU counters                   & \unitrange{20}{300}{s}, irregular & software instrumentation \\
+SLURM     & cluster scheduler aggregates          & \unitrange{5}{10}{s} & user submission behaviour \\
+Nagios    & service and hardware alarm states     & \unit{15}{min} & discrete state machine \\
+Job table & per-job submission records            & event-driven & not a time series (\oi{8}) \\
+Schneider & liquid-cooling PLC registers          & \unit{20}{s} & closed-loop control \\
+Logics    & room power, PUE, chillers             & --- & facility aggregation \\
+Vertiv    & air-handling units                    & \unit{10}{s} & closed-loop control \\
+Weather   & outdoor conditions                    & \unit{10}{min} & exogenous \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Related work}
+\label{sec:related}
+
+Four bodies of work bear on this study. Claims below were checked against the
+source papers rather than their abstracts; the four we could obtain lawfully are
+read and verified, and the remainder are cited only for definitions we
+implement (\oi{10}).
+
+\paragraph{The dataset.} M100 ExaData~\citep{borghesi2023m100} publishes 49.9\,TB
+of holistic telemetry --- management, workload, facility and infrastructure ---
+from Marconi100 across two and a half years. Two of its derived releases matter
+here. The unsupervised anomaly-detection set aggregates \emph{IPMI} metrics into
+15-minute periods with average, standard deviation, minimum and maximum per
+window, plus a Nagios-derived label; our common analysis grid matches that
+choice, though we apply it to all nine families rather than IPMI alone. The
+thermal-hazard set reduces sampling from 20 seconds to 10 minutes, and the
+authors state the trade explicitly: that rate ``will preserve room- and
+node-level thermal transient but discard computing-component-level ones''. That
+is a direct statement of what aggregation costs, and it applies to our results
+as much as to theirs (\oi{4}).
+
+\paragraph{What this telemetry is normally used for.} The dominant application
+is anomaly \emph{detection} rather than forecasting.
+\citet{borghesi2019anomaly} train per-node autoencoders on HPC monitoring data
+and report detecting previously unseen anomalies at accuracies between 88\% and
+96\%. Detection asks whether the present sample is unusual given a learned model
+of normal behaviour; forecasting asks what the next sample will be. The former
+can succeed on signals whose future values are not predictable at all, which is
+one reason the difficulty we measure has attracted little attention.
+
+\paragraph{Feature-based characterisation of time series.} Our method follows the
+tradition of describing a series by a fixed feature vector rather than by a
+fitted model. \citet{lubba2019catch22} reduce 4791 candidate features to 22 by
+selecting for classification performance and minimal redundancy across 93
+datasets, achieving a roughly 1000-fold reduction in computation for an average
+accuracy loss of 7\%, and covering linear and non-linear autocorrelation,
+successive differences, value distributions and outliers, and fluctuation
+scaling. Our profile is smaller and chosen for interpretability by mechanism
+rather than by classification performance, but the premise --- that a compact,
+model-free description captures much of what matters about a series --- is
+theirs.
+
+\paragraph{Capacity and forecast accuracy.} Our finding that heavier models do
+worse has a direct precedent outside HPC. \citet{zeng2023transformers} introduce
+one-layer linear models and report that they outperform sophisticated
+Transformer-based long-term forecasters ``in all cases, and often by a large
+margin'' across nine real-world datasets, arguing that permutation-invariant
+self-attention discards temporal ordering. Our result is the same shape in a
+different domain and at the opposite end of the complexity range: on this
+telemetry a persistence forecast beats gradient-boosted trees and neural
+networks at every horizon tested. Where they compare a linear model against
+Transformers, we find the useful baseline is simpler still.
+
+\paragraph{What we did not verify.} MASE~\citep{hyndman2006another}, permutation
+entropy~\citep{bandt2002permutation}, detrended fluctuation
+analysis~\citep{peng1994mosaic} and the Theta
+method~\citep{assimakopoulos2000theta} are cited for definitions we implement
+and test against known-answer series. Their full texts are paywalled and were
+not read; no claim is made here about their findings beyond the definitions, and
+we attribute no result to them. Three of the four works we did read were
+obtained as preprints rather than the versions of record we cite, which we note
+as a limitation of the audit rather than of the works.
+
+\section{Method}
+\label{sec:method}
+
+\subsection{Campaign census}
+\label{sec:census-method}
+
+Tar members are read header-only, so cataloguing all 31 archives costs seconds
+and no disk. For each extracted partition we then compute a per-series census:
+one row per (plugin, metric, entity, month) recording sample count, observed
+cadence, cadence jitter, gap fraction, coverage, missingness, value range,
+distinct-value count and quantisation step. The census is deliberately
+descriptive --- it contains no predictability measure and no model --- so that
+a later finding of between-family differences cannot be an artefact of having
+looked first.
+
+\subsection{The entity panel}
+
+Node-level series of one metric are highly redundant --- nodes share racks,
+inlet air, cooling zones, and workload --- and are therefore not independent
+samples (\oi{9}). Analysis runs on a fixed panel of \num{96} entities whose
+membership is a stable hash of the entity label under the project seed. Because
+the hash sees only the label, panel membership is identical across every metric
+and every month, so cross-metric comparisons are made on the same physical
+machines rather than on a fresh random slice.
+
+\subsection{A-priori signal taxonomy}
+
+Labels are assigned from the plugin and metric \emph{name} alone, before any
+predictability is measured, so that a finding of between-family differences
+cannot be a relabelling of the result it is meant to explain.
+
+\subsection{Model-free predictability measures}
+
+Each series receives a profile of \num{21} measures grouped by the mechanism it
+probes: entropy and complexity (permutation entropy~\citep{bandt2002permutation}, spectral entropy, sample
+entropy~\citep{richman2000physiological}, Lempel--Ziv complexity, gzip
+compression ratio); periodicity (dominant-period strength, daily seasonal
+strength); memory (autocorrelation at lag one and one day, detrended fluctuation
+exponent~\citep{peng1994mosaic}); stationarity (block-mean drift ratio, variance
+ratio, Augmented Dickey--Fuller~\citep{dickey1979distribution} and
+KPSS~\citep{kwiatkowski1992testing} \(p\)-values, and a mean-shift changepoint
+rate obtained by binary segmentation~\citep{truong2020selective}); and
+shape (jump fraction, repetition fraction, monotone fraction, reset rate,
+excess kurtosis of differences). Four instrument covariates --- quantisation
+step, interval jitter, gap fraction and coverage --- are carried separately so
+their contribution can be isolated from signal structure.
+
+Two of these were added in response to an earlier failure of this study's own
+analysis rather than chosen a priori, and we flag the distinction. Monotone
+fraction and reset rate target counter-like signals, which a drift forecaster
+handles almost exactly and which the original profile could not distinguish from
+genuinely hard signals. They help but do not repair the case: error counters
+remain the worst-transferring family at a level-corrected \(R^2\) of
+\(-1.05\), against \(-2.39\) raw. Each
+returns \texttt{nan} rather than raising on degenerate input, because constant
+series are the common case here rather than an edge case
+(\S\ref{sec:constant}). Implementations are validated against series whose
+answers are known by construction --- a ramp, a sine, white noise, a random walk
+--- in the accompanying test suite.
+
+No single measure suffices, and the reason is instructive. Permutation entropy
+assigns \num{0.000} both to monotone counters, which have some \num{17850}
+distinct values, and to alarm states, which have two: a monotone series has
+exactly one ordering pattern and a step function almost never changes. Both are
+easy to forecast, for opposite structural reasons, and entropy cannot
+distinguish them (\oi{11}).
+
+\subsection{Forecast protocol}
+
+Skill is measured under rolling-origin evaluation with strict causality
+asserted per split. Errors are scaled by MASE with a denominator computed from
+the training window only; scaling by test-window statistics is the most common
+silent leak in forecasting benchmarks and would compress exactly the
+between-tier differences this study reads. The seasonal period is fixed per
+series \emph{a priori} from its own cadence, with a non-seasonal robustness
+check (\oi{5}).
+
+MASE is undefined where the in-sample seasonal-naive error vanishes. This is
+not an edge case here: a substantial share of control-plane series are constant
+(\S\ref{sec:census}), and near-perfectly periodic windows yield denominators at
+the level of floating-point noise. Such series are reported as undefined rather
+than assigned a spuriously large score.
+
+\subsection{Pipeline and cost}
+\label{sec:pipeline}
+
+The study is a thirteen-stage pipeline, each stage writing a committed artefact so
+that any stage can be re-run without repeating the ones before it
+(Table~\ref{tab:pipeline}). Bulk intermediates are sharded per partition and
+skipped when present, which makes an interrupted run resumable rather than
+repeatable.
+
+Two engineering constraints shaped the design and are worth stating because they
+bound what the study could attempt. The archives hold roughly \num{55} billion
+rows against a machine with \num{62}\,GB of memory shared with other workloads,
+so extraction is selective and concurrency is derived from a memory budget rather
+than the core count. And every worker pins its BLAS and OpenMP pools to a single
+thread: with pools left at their defaults, five worker processes on a 24-core
+machine request 120 threads and the forecast sweep runs roughly \num{90} times
+slower, with no error and no warning to indicate it. The full sweep takes minutes
+once pinned.
+
+\begin{table}[t]
+\centering
+\caption{Pipeline stages and their committed outputs.}
+\label{tab:pipeline}
+\small
+\begin{tabular}{llp{2.9cm}}
+\toprule
+\# & Stage & Output \\
+\midrule
+1 & inventory & partition catalogue (all 31 archives) \\
+2 & extract & selected partitions, disk-guarded \\
+3 & census & per-series descriptive table \\
+4 & taxonomy & a-priori labels + firing rule \\
+5 & sample & stratified series sample \\
+6 & features & \num{21}-measure profile per series \\
+7 & forecast & skill per (series, model, horizon, origin) \\
+8 & link & transfer, ablations, null control \\
+9 & figures & figures + backing CSV per figure \\
+10 & literature & screening table, bibliography \\
+11 & direct control & recursive vs direct forecasting \\
+12 & protocol control & synthetic arms with known ground truth \\
+13 & ceiling & Fano bound per series (slowest stage, ${\sim}35$\,min) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Protocol and model settings, fixed before results existed.}
+\label{tab:hyper}
+\small
+\begin{tabular}{ll}
+\toprule
+Setting & Value \\
+\midrule
+Analysis grid & \num{15} min, common to all families \\
+Entity panel & \num{96} primary entities, hashed \\
+Horizons & 1, 4, 12, 96 steps (15\,min--24\,h) \\
+Rolling origins & 4 per series \\
+Training window & \num{1500} most-recent points \\
+Minimum series length & \num{512} points \\
+MASE denominators & same-step (primary), daily \\
+Boosted trees & 8/15, 24/60, 48/200 lags/iters \\
+Neural & 48--24 and 96--48 units, 40--60 iters \\
+Ridge AR & order 24, \(\lambda=10^{-6}\) \\
+Seed & \num{20230288} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Failure modes}
+\label{sec:failures}
+
+Degenerate input is the common case here, not an edge case, so the pipeline is
+specified for it. A constant series yields an undefined MASE (the seasonal-naive
+denominator is zero) and is excluded from skill statistics and counted; so is a
+near-perfectly periodic one, whose denominator is at the level of floating-point
+noise and would otherwise produce an arbitrary ratio of two rounding errors. Every
+measure returns \texttt{nan} rather than raising on a series that is too short or
+has no variation. A series whose value column never parses as numeric is recorded
+as non-numeric and dropped. Where a forecaster fails to fit, the failure is
+recorded against that (series, model, origin) and the sweep continues, so one
+ill-conditioned fit cannot destroy a run.
+
+\subsection{Linking analysis}
+
+Skill is regressed on the predictability profile, cross-validated by holding out
+an \emph{entire signal family}. A random split would let the model memorise
+family-specific quirks and report a flattering \(R^2\); a held-out family forces
+the relation to transfer to signal physics it has never seen, which is what a
+portable difficulty law would require. Every \(R^2\) is reported against a
+train-mean baseline, so ``the measures explain skill'' means better than knowing
+nothing rather than better than zero. Three ablations exist to attack the
+headline: dropping the instrument covariates, keeping only them, and removing
+the tie-biased entropy. Marginal correlations use a cluster bootstrap over
+metrics, because series of one metric across nodes are not independent
+(\oi{9}).
+
+\section{Results}
+\label{sec:results}
+
+\subsection{The monitoring system is not stationary}
+\label{sec:census}
+
+Across the 31-month campaign we catalogue \num{10504} metric partitions
+comprising \num{573} distinct (plugin, metric) pairs. Only \num{104} --- all of
+them IPMI --- are present in every month. Ganglia's metric count runs
+\num{0}, \num{33}, \num{73}, \num{49}, \num{157}, \num{177} and is not
+monotonic; SLURM's runs \num{20}, \num{2}, \num{0}, \num{2}, \num{36};
+Schneider first appears in 21-03 and Vertiv and Weather in 21-04.
+
+Figure~\ref{fig:coverage} shows the pattern. Any claim compared across months
+therefore confounds signal behaviour with changes to the instrument, and we
+restrict cross-month statements accordingly (\oi{2}).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{coverage.pdf}
+\caption{Metrics collected per plugin per month. Grey marks a plugin absent that
+month; the colour scale is logarithmic.}
+\label{fig:coverage}
+\end{figure}
+
+\subsection{Much of what is monitored never changes}
+\label{sec:constant}
+
+Across \num{159506} series the fraction constant over a whole month varies by
+more than a factor of seven between families: \num{64.8}\% for Nagios,
+\num{47.0}\% Schneider, \num{42.9}\% Logics and Ganglia, \num{33.1}\% Vertiv,
+against \num{10.5}\% SLURM, \num{8.4}\% IPMI and \num{0}\% Weather. MASE is
+undefined for such series --- the seasonal-naive denominator is zero --- and
+they are excluded from skill statistics and counted rather than silently
+dropped. Figure~\ref{fig:constant} gives the breakdown.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{constant_share.pdf}
+\caption{Share of series that never change over a month, by family.}
+\label{fig:constant}
+\end{figure}
+
+\subsection{Regularity and interruption are different properties}
+\label{sec:sampling}
+
+Sampling irregularity is routinely summarised by the coefficient of variation of
+the inter-sample interval. On this data that measure is misleading: it reports
+IPMI as the least regular family, contradicting the dataset documentation. IPMI
+in fact has \emph{zero} series with a jittery interval and \num{100}\% with a
+gap exceeding a hundred times the median --- its sampling is exact and
+universally interrupted, and the rare enormous gaps dominate the coefficient of
+variation. Ganglia is the only family whose interval genuinely wanders
+(\num{81}\% of series), which is what the documentation reports. We therefore
+measure jitter and interruption separately (\oi{1}); Figure~\ref{fig:sampling}
+shows that the two are nearly orthogonal.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{sampling_irregularity.pdf}
+\caption{Interval jitter and outage incidence are different properties. IPMI has
+no jittery series and no uninterrupted ones.}
+\label{fig:sampling}
+\end{figure}
+
+\subsection{Forecast skill and model capacity}
+\label{sec:skill}
+
+Figure~\ref{fig:tier} shows median skill by tier and horizon on \num{1082}
+series, pooling every model within a tier. Capacity does not buy skill: the
+naive tier leads at every horizon and the best single model throughout is
+persistence.
+
+Pooling penalises a tier for containing a deliberately weak member, so we also
+compare each tier's \emph{best} model per series, paired across series. That
+comparison is both more favourable to the sophisticated tiers and more
+conclusive against them. At a one-hour horizon the per-series best is
+\num{0.945} (IQR \([0.70, 1.00]\)) for naive, \num{0.861} for statistical,
+\num{0.747} for boosted trees and \num{0.643} for neural networks; a paired
+Wilcoxon test of naive against each other tier rejects equality at every horizon
+and by a wide margin (\(p < 10^{-20}\) against every tier at one hour, and
+\(p < 10^{-90}\) against the neural tier). The ordering is not an artefact of
+pooling. At a 24-hour horizon even the best naive model is negative
+(\num{-0.284}), so the claim that no tier beats a same-step naive forecast holds
+at a day but not at three hours, where the per-series best naive model still
+scores \num{0.880}. One qualification remains: the ordering depends on the baseline. Against a
+daily-seasonal denominator the statistical tier leads instead, and boosted trees
+overtake naive at the shortest horizon (\oi{5}).
+
+\subsection{Control: is this an artefact of recursive forecasting?}
+\label{sec:direct}
+
+Every learned model above forecasts recursively --- predict a step, append it,
+predict again --- so error compounds, and the collapse of the learned tiers at
+long horizons might be that compounding rather than anything about the signals.
+This is the most plausible alternative explanation for the result, so we test it
+rather than caveat it. We fit the same gradient-boosted learner two ways on the
+same series, origins and horizons: recursively, and \emph{directly}, trained to
+map a lag window onto the value \(h\) steps ahead in a single prediction.
+
+\begin{table}[t]
+\centering
+\caption{Median skill (\(1-\)MASE, same-step denominator) for the same learner
+forecast recursively and directly, against persistence, on \num{341} matched
+(series, origin) windows.}
+\label{tab:direct}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Horizon & Persistence & GBT recursive & GBT direct \\
+\midrule
+15\,min & \num{0.767} & \num{0.320} & \num{0.392} \\
+1\,h    & \num{0.499} & \num{-0.223} & \num{0.114} \\
+3\,h    & \num{-0.023} & \num{-1.029} & \num{-0.259} \\
+24\,h   & \num{-2.758} & \num{-3.692} & \num{-2.838} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Recursion does cost a great deal --- forecasting directly recovers between
+\num{0.07} and \num{0.85} of skill depending on horizon, most at one and three
+hours --- so the caveat was warranted. But the conclusion is unaffected: the
+direct model still loses to persistence at every horizon tested
+(Table~\ref{tab:direct}). The capacity result is a property of the problem, not
+of the recursion.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{skill_by_tier.pdf}
+\caption{Median skill by model tier. Zero is a same-step naive forecast.}
+\label{fig:tier}
+\end{figure}
+
+\subsection{Two regimes: signal-limited and model-limited families}
+\label{sec:ceiling}
+
+The capacity result above says the models we tried do not help. It does not say
+whether anything could. Those are different claims, and separating them needs a
+quantity no forecaster can beat.
+
+We estimate one. Each series is symbolised at its own resolution --- its
+distinct values where there are at most \num{16}, equal-frequency quantiles
+otherwise --- its entropy rate \(S\) is estimated with the Lempel-Ziv estimator
+\(S = n\log_2 n / \sum_i \Lambda_i\), where \(\Lambda_i\) is the length of the
+shortest substring at position \(i\) not seen before it, and the maximum
+predictability \(\Pi_{\max}\) follows from the limiting case of Fano's
+inequality
+\[
+S = -[\Pi\log_2\Pi + (1-\Pi)\log_2(1-\Pi)] + (1-\Pi)\log_2(N-1),
+\]
+after \citet{song2010limits}. Against it we place the accuracy persistence
+actually achieves on the \emph{same} alphabet --- persistence because
+\S\ref{sec:skill} finds it the strongest forecaster here, so the comparison
+is not against a straw man.
+
+\textbf{This is an estimate, not a bound, and its error changes sign across the
+entropy range.} Calibrated against 16-state Markov sources whose rate is known
+in closed form, at the \(n=2000\) this data provides, the estimated ceiling errs
+by \(+0.22\) at a true rate of \num{3.98} bits, \(+0.04\) at \num{3.19},
+\(-0.01\) at \num{2.42} and \(-0.05\) at \num{1.43}. The mechanism is
+saturation: on i.i.d. uniform symbols, true rate \num{4.0}, the estimator
+returns \num{3.48} at \(n=1000\) and still only \num{3.62} at \(n=16000\), so
+near-random series receive a ceiling roughly \num{0.24} too generous and that
+error does \emph{not} shrink with more data. At the predictable end the error
+reverses, which is why \num{248} of \num{1402} series (\num{18}\%) exceed their
+own ceiling.
+
+We state this rather than assert a convenient direction, because a natural
+reading --- that the ceiling under-states and headroom is therefore a lower
+bound --- is what we first wrote and is wrong at exactly the end of the range
+where the headroom result lives. What the calibration does license is narrower
+and sufficient: across the estimated rates M100 actually occupies
+(\num{0.03}--\num{2.97} bits) the error is bounded by about \(\pm\num{0.05}\),
+so a headroom above that is evidence and one below it is not. The measure would
+not be usable at all on series approaching \num{3.5} bits, and none here do.
+
+\begin{table}[t]
+\centering
+\caption{Achieved next-symbol accuracy against the estimated information
+ceiling, by family. Headroom is a lower bound. Four families are at their
+limit; nine are not.}
+\label{tab:ceiling}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Regime (families) & \(S\) & ceiling & achieved & headroom \\
+\midrule
+signal-limited (4)  & 0.03--0.34 & 0.97--1.00 & 0.99--1.00 & \(\approx 0\) \\
+near-limit (4)      & 0.63--0.93 & 0.89--0.93 & 0.81--0.90 & 0.02--0.08 \\
+model-limited (9)   & 1.00--2.97 & 0.50--0.88 & 0.18--0.69 & 0.12--0.31 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{ceiling_gap.pdf}
+\caption{Achieved next-symbol accuracy (persistence) against the estimated
+information ceiling, per family, on each series' own alphabet. Bar length is
+headroom. Four families sit at the limit --- their two markers coincide --- and
+the remainder leave between \num{0.02} and \num{0.31} of next-step accuracy
+unclaimed. Error counters fall marginally to the \emph{right} of their ceiling,
+which is the estimator's downward bias rather than a violated bound.}
+\label{fig:ceiling}
+\end{figure}
+
+The families split into two regimes (Figure~\ref{fig:ceiling},
+Table~\ref{tab:ceiling};
+\texttt{results/tables/ceiling\_gap.csv}). Error counters, system metadata,
+alarm states and setpoint registers carry \num{0.03}--\num{0.34} bits per step,
+and persistence already achieves \num{0.99} or better --- at or above the
+estimated ceiling. Nothing can improve them, and a benchmark that includes them
+is measuring its own sample composition, which is the same point
+\S\ref{sec:constant} makes from a different direction.
+
+The other nine are not at any limit. Power, network, electrical, thermal, fan
+flow, utilisation and humidity signals carry \num{1}--\num{3} bits per step, of
+which persistence leaves \num{12} to \num{31} percentage points of next-step
+accuracy unclaimed.
+
+\textbf{This qualifies \S\ref{sec:skill} rather than contradicting it.} Both
+hold: the model classes we tried --- boosted trees and lag-window networks,
+forecasting recursively --- do worse than persistence, \emph{and} extractable
+structure remains in the continuous physical families beyond the calibrated
+error of the estimate.
+
+\textbf{The headroom is real but not easily reached, and we tested that rather
+than assuming either way.} A gap between achieved accuracy and a ceiling is only
+interesting if some estimator can close part of it, so we fitted the cheapest
+candidate: a first-order Markov predictor on the same symbols, transition matrix
+estimated causally on the first half of each series and evaluated on the second,
+falling back to persistence on unseen states. It claims \emph{none} of the gap.
+Its median accuracy is below persistence in \num{13} of \num{17} families --- by
+\num{0.057} for power, \num{0.051} for CPU utilisation, \num{0.044} for network
+--- and above it in none by more than \num{0.004}.
+
+So the unclaimed predictability is not carried by first-order transitions
+between symbols. Whatever the continuous physical families retain lies in longer
+context, in the continuous values that symbolisation discards, or in exogenous
+covariates none of our univariate models see. That is a narrower and more useful
+statement than "the model classes tried are the wrong ones", and it is the one
+the evidence supports: we have shown where the structure is \emph{not}.
+
+One caveat bounds what the comparison licenses. The ceiling concerns
+\emph{one-step} next-symbol accuracy on a \num{16}-level alphabet; our skill
+numbers are MASE at a \emph{four-step} horizon on continuous values. Headroom
+establishes that the information is present, not that a forecaster can convert
+it into MASE.
+
+\subsection{Does the protocol work? A synthetic positive control}
+\label{sec:protocol}
+
+Before reporting a negative transfer result we must establish that the protocol
+can report a positive one. Otherwise ``we found no portable law'' is
+indistinguishable from ``our procedure cannot find one''. We therefore generate
+synthetic families whose ground truth is known by construction and run them
+through the \emph{identical} pipeline --- the same measure functions, the same
+forecast harness, the same leave-one-family-out routine --- varying only how the
+series were produced (Table~\ref{tab:protocol}).
+
+\begin{table}[t]
+\centering
+\caption{Synthetic protocol control, \num{600} series over \num{15} families
+per arm, against the real result. The protocol recovers a genuine portable law
+(\texttt{portable}); a disjoint-band world destroys the ordering, and M100 does
+not look like it.}
+\label{tab:protocol}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Arm & mean \(R^2\) & fam.\ \(>0\) & med.\ Spearman \\
+\midrule
+\texttt{portable}     & \num{+0.248} & 13/15 & \num{+0.584} \\
+\texttt{portable\_oracle} & \num{+0.233} & 13/15 & \num{+0.576} \\
+\texttt{disjoint}     & \num{-0.096} & 2/15  & \num{-0.050} \\
+\texttt{no\_law}       & \num{-0.070} & 6/15  & \num{+0.100} \\
+\midrule
+\textbf{M100 (real)}  & \num{-0.189} & 9/15  & \num{+0.495} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three things follow. First, the protocol works: where a portable law exists it
+is recovered at \(R^2 = +0.25\) with \num{13} of \num{15} families positive,
+so M100's negative \(R^2\) is a statement about M100 rather than about the
+method. Second, supplying the \emph{true} generating parameter as a feature
+(\texttt{portable\_oracle}) does not beat the measured features
+(\num{+0.233} against \num{+0.248}), which bounds how much of the remaining gap
+could be closed by better features alone.
+
+Third, and least comfortable for the obvious explanation: M100 does \emph{not}
+resemble the \texttt{disjoint} arm. If each family occupied its own
+non-overlapping band of a shared law, predicting a held-out family would require
+extrapolation and the ordering would fail with it --- and it does, to a median
+Spearman of \(-0.05\). M100's ordering instead sits at \(+0.50\), close to the
+genuinely portable arm's \(+0.58\). Whatever prevents the level from
+transferring, it is not simply that families occupy disjoint parameter ranges.
+We report this as an open mechanism rather than adopt the explanation the arm
+was built to test.
+
+\paragraph{What blocks the level.} The synthetic \texttt{disjoint} arm rules
+out the crudest version of the extrapolation story, but not the idea itself. For
+each held-out family we measure how far its feature distribution sits outside
+the training families' support. That distance predicts the level error strongly
+(\(r=+0.78\) against the absolute level bias) and the raw \(R^2\) nearly as
+strongly (\(-0.66\)), while barely touching the ordering (\(-0.22\)). Error
+counters sit furthest outside the training support of any family and are also
+the worst transfer case on every metric.
+
+The mechanism is therefore extrapolation, but selectively: predicting a family
+whose measures lie outside anything seen in training biases the \emph{level} of
+the prediction without destroying the \emph{ranking}. The synthetic arm failed
+to reproduce this because forcing families into non-overlapping bands removes
+the shared structure the ranking depends on, which is a stronger intervention
+than the real data applies.
+
+\paragraph{How much local labelling repairs it.} If the level failure is
+extrapolation, a handful of labelled series from the unfamiliar family should
+fix it, and the families needing most extrapolation should benefit most. We test
+this directly: for each held-out family we add \(k\) of its own series to the
+training set and re-fit, averaging over draws
+(Table~\ref{tab:fewshot}).
+
+\begin{table}[t]
+\centering
+\caption{Few-shot calibration. Adding \(k\) labelled series from the held-out
+family before re-fitting. Twenty examples turn the mean \(R^2\) positive.}
+\label{tab:fewshot}
+\small
+\begin{tabular}{rrrr}
+\toprule
+\(k\) & mean \(R^2\) & median \(R^2\) & families \(>0\) \\
+\midrule
+0  & \num{-0.212} & \num{+0.057} & 60\% \\
+1  & \num{-0.170} & \num{+0.054} & 61\% \\
+2  & \num{-0.142} & \num{+0.053} & 64\% \\
+5  & \num{-0.090} & \num{+0.054} & 68\% \\
+10 & \num{-0.015} & \num{+0.056} & 70\% \\
+20 & \num{+0.061} & \num{+0.097} & 72\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Twenty labelled series --- a few hours of one operator's attention --- move the
+mean \(R^2\) from \(-0.21\) to \(+0.06\) and raise the share of families
+above zero from \num{60}\% to \num{72}\%. The gain is concentrated exactly
+where the mechanism predicts. Error counters, furthest outside the training
+support, improve from \(-2.39\) to \(-0.03\); alarm states from \(-2.41\) to
+\(-1.15\). Families that already transferred barely move: CPU utilisation goes
+\(+0.18\) to \(+0.12\) and the scheduler family \(+0.47\) to \(+0.51\).
+
+This is the practical form of the result. The profile ranks candidate signals in
+an unfamiliar family with no local data at all; calibrating the absolute
+difficulty needs on the order of twenty labelled examples from that family, and
+needs them most precisely where the ranking was already usable but the level was
+not.
+
+\paragraph{An information-theoretic reference point, and what it is not.} A
+natural question is how far the achieved skill sits from an information-theoretic
+limit. We compute one for every series: the entropy rate of the symbolised
+signal, converted through Fano's inequality into an upper bound on the fraction
+of next-bin transitions any predictor could get right~\citep{song2010limits}. Computed on a 16-symbol alphabet, the median across
+\num{1402} series is \num{0.854}, and it separates families sharply --- network
+traffic at \num{0.575} and electrical measurements at \num{0.638} against alarm
+states and setpoint registers at \num{0.996}.
+
+It is \emph{not} a bound on our skill metric, and we report that rather than
+let the framing imply otherwise. \num{77.5}\% of series achieve a skill above
+their own ``ceiling''. That figure should not be confused with the \num{18}\%
+of \S\ref{sec:ceiling}, which is a different and stricter test: there the
+comparison is like-for-like --- next-symbol accuracy against a ceiling on
+next-symbol accuracy, same alphabet, same series --- and the exceedance measures
+error in the \emph{estimator}, whereas the \num{77.5}\% here measures the
+mismatch between two \emph{quantities}. Both are real, and they have different
+remedies: the first shrinks with longer series, the second does not shrink at
+all. The two quantities answer different questions: Fano
+bounds next-\emph{bin} accuracy on a symbolised sequence, while skill is a
+scale-free error ratio on continuous values, and a signal that is easy to
+extrapolate but hard to bin exactly can exceed the first while doing well on the
+second. Anyone reading the number as a limit on achievable error would be
+misled. The gap is known in the literature that introduced the measure:
+\citet{lu2013approaching}, applying it to mobility traces, note that ``the
+largest prediction accuracy that can be achieved with properly designed
+predictive algorithms is not given directly by this measure''. Our result is
+the sharper version of that caution --- in this setting the achieved skill
+routinely exceeds the bound, because the two are not measuring the same event.
+
+What it is instead is the single strongest ordinal predictor of difficulty we
+found: Spearman \(+0.69\) with achieved skill across series and \(+0.73\)
+across family medians, ahead of the compression ratio and every entropy measure.
+That is consistent with the paper's central result --- these measures rank well
+and calibrate badly --- and it extends it, since the ceiling is derived from
+information theory rather than fitted to anything.
+
+\paragraph{A scale-free view.} Because \(R^2\) is dominated by that level
+error, we also report mean absolute error against the same baseline. On that
+metric the model beats predicting the training mean for \num{13} of \num{15}
+families (mean skill \num{+0.20}), against \num{9} of \num{15} on \(R^2\).
+Both are correct; they answer different questions, and a reader should not take
+either alone as the summary.
+
+One further comparison is worth stating plainly because it looks damning in
+isolation. On raw \(R^2\) M100 (\num{-0.189}) transfers \emph{worse} than
+synthetic data with no relation at all (\texttt{no\_law}, \num{-0.070}). That
+is not a contradiction --- M100's ordering correlation is five times
+\texttt{no\_law}'s --- but it is a direct demonstration that raw \(R^2\) is the
+wrong summary for this question, since a large family-specific level offset
+punishes it more than having no relation does.
+
+\subsection{Predictability transfers ordinally, and only partly in level}
+\label{sec:linking}
+
+Individually the measures correlate with skill. Cluster-robust over \num{261}
+metric clusters the strongest is the gzip compression ratio at \(r=-0.42\)
+(95\% CI \([-0.52,-0.31]\)), ahead of repetition fraction \(+0.37\)
+(\([0.26,0.49]\)), permutation entropy \(-0.33\) and changepoint rate
+\(-0.30\). That a general-purpose compressor outranks every hand-designed
+entropy measure is worth noting on its own.
+
+Jointly the same pattern holds and is stronger. The three highest permutation
+importances in the fitted model are all information-theoretic and none is
+hand-designed for time series: the compression ratio (\num{0.110}), the
+Lempel-Ziv entropy rate (\num{0.048}), and the Fano ceiling derived from it
+(\num{0.037}). Repetition fraction, which an earlier draft of this work reported
+as the dominant predictor, falls to \num{0.019} once they are present --- its
+signal was largely theirs. Adding the three lifts every transfer statistic in
+Table~\ref{tab:transfer}: median \(R^2\) from \(+0.05\) to \(+0.14\), families
+with positive within-family ordering from \num{14} of \num{15} to \emph{all}
+\num{15}, and median MAE-skill from \num{0.19} to \num{0.21}.
+
+Jointly, the raw picture looks poor: holding out each of \num{15} families in
+turn gives a mean out-of-sample \(R^2\) of \(-0.17\), a median of \(+0.14\),
+positive for \num{10} of the \num{15}, ranging from \(+0.42\) to \(-2.56\).
+The worst fold is \emph{not} the family that genuinely fails --- it is alarm
+states, which the model predicts more accurately than any other. Reported alone
+that number is misleading in three ways, and Table~\ref{tab:transfer} shows
+why.
+
+\emph{\(R^2\) is scored against an oracle, not against a usable baseline.}
+\(R^2\) is \(1-\mathrm{SSE}/\mathrm{SST}\), and \(\mathrm{SST}\) is taken about
+the mean of the \emph{held-out} family. Its implicit comparator is therefore a
+predictor that already knows the average skill of the family being predicted,
+which is precisely the quantity unavailable to a model that has never seen it.
+\(R^2<0\) means \emph{worse than that oracle}; it does not mean \emph{no better
+than nothing}. The distinction is not academic here, because the denominator
+degenerates whenever a family's series have similar skill. Alarm states are the
+clearest case: their skills have a standard deviation of \num{0.036}, the model
+predicts every held-out series to a mean absolute error of \num{0.033} against
+\num{0.600} for the best family-blind predictor --- a \num{95}\% reduction ---
+and \(R^2\) records \(-2.56\), the worst score of any family in the study.
+
+Scoring the same folds the way this paper scores forecasts everywhere else, as
+a fractional reduction in absolute error against a baseline
+(\(1-\mathrm{MAE}_{\text{model}}/\mathrm{MAE}_{\text{baseline}}\), the same
+construction as MASE), the picture inverts: \num{13} of \num{15} families beat
+the family-blind predictor, by a median \num{21}\% reduction in error. The one substantive failure is monotone
+error counters, at \num{68}\% \emph{worse} than baseline --- and on \(R^2\)
+they score \(-1.83\), \emph{better} than the alarm states the model handles
+almost perfectly. The two criteria do not merely differ in scale; they disagree
+about which family failed. The synthetic control of \S\ref{sec:protocol} makes the point sharpest:
+the arm with skill permuted across series, containing no relation whatever,
+scores \(R^2=-0.07\) --- \emph{better} than M100's \(-0.17\) --- while its
+MAE-skill is \(+0.002\) against M100's \(+0.21\) and its within-family Spearman
+\(+0.10\) against \(+0.52\). A statistic that ranks genuine structure below
+noise is not measuring the question being asked, and we report it here only
+because it is what a reader would expect to see.
+
+\emph{Ordering transfers; level does not.} Within a held-out family the model
+ranks series correctly --- median Spearman \(+0.52\), positive in all
+\num{15} families and significant at \(p<0.05\) for \num{10} --- while
+placing that ranking at the wrong absolute level. \(R^2\) penalises the level
+error; Spearman does not. Removing the level bias moves the median \(R^2\) from
+\(+0.14\) to \(+0.15\) and makes \num{11} of \num{15} families positive. The
+practical reading is that the profile can say which signals in an unfamiliar
+family will be harder than which, but not how hard any of them will be.
+
+\emph{The failure is specific to family boundaries.} Running the identical
+protocol with \emph{random} groups of matched size gives a median \(R^2\) of
+\(+0.36\) across draws (2.5--97.5\% range \([0.25, 0.41]\), mean \(+0.35\))
+with every group positive,
+against \(-0.17\) and \num{67}\% for the real families; over \num{100} draws
+no random grouping was as poor as the observed one (\(p<0.001\)). Arbitrary
+grouping therefore transfers easily, so the protocol is capable of transfer and
+the family axis carries real structure. Without this control the raw \(R^2\)
+would be equally consistent with a protocol that simply cannot generalise at
+all.
+
+\begin{table}[t]
+\centering
+\caption{Transfer to a held-out family, under three criteria. Against a
+baseline a model could actually have, transfer succeeds for \num{13} of
+\num{15} families; \(R^2\) disagrees because its comparator is an oracle that
+already knows the held-out family's mean skill.}
+\label{tab:transfer}
+\small
+\begin{tabular}{lrrr}
+\toprule
+ & mean & median & positive \\
+\midrule
+\multicolumn{4}{l}{\emph{against a family-blind baseline}}\\
+MAE-skill                   & \num{+0.218} & \num{+0.213} & 13/15 \\
+within-family Spearman      & \num{+0.450} & \num{+0.523} & 10/15 at \(p<0.05\) \\
+\midrule
+\multicolumn{4}{l}{\emph{against an oracle that knows the family's mean}}\\
+raw \(R^2\)                 & \num{-0.167} & \num{+0.141} & 10/15 \\
+level-corrected \(R^2\)     & \num{-0.012} & \num{+0.154} & 11/15 \\
+\midrule
+random-group null (\(R^2\)) & \num{+0.348} & \num{+0.367} & 15/15 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Ablations. Removing the entropy family \emph{improves} transfer;
+removing the instrument covariates costs almost nothing; using them alone
+destroys it.}
+\label{tab:ablation}
+\small
+\begin{tabular}{lrr}
+\toprule
+Feature set & \# & mean \(R^2\) \\
+\midrule
+without entropy measures   & 23 & \num{-0.142} \\
+full profile               & 27 & \num{-0.167} \\
+signal measures only       & 23 & \num{-0.204} \\
+instrument covariates only & 4  & \num{-14.999} \\
+\midrule
+predicting the global mean & --- & \num{-18.352} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+The result is not an artefact of instrumentation. Using the instrument covariates
+alone collapses the model (\(-15.0\) against \(-0.17\) for the full profile),
+while removing them costs almost nothing (\(-0.20\)) --- see
+Table~\ref{tab:ablation}. Whatever the
+measures capture, it is not how the data was sampled --- which is the
+conditioning test \oi{1} called for.
+
+\subsection{How much labelling closes the level gap}
+\label{sec:fewshot}
+
+Leave-one-family-out asks the hardest question available: predict a family
+having seen nothing from it. An operator meeting a new signal family would not
+refuse to measure a few of its series first. We therefore sweep the number of
+labelled series \(k\) drawn at random from the held-out family into the training
+set, averaging over \num{15} draws per family and scoring only on the series
+that were \emph{not} drawn, so nothing is ever evaluated by a model that saw it.
+
+\begin{table}[t]
+\centering
+\caption{Transfer as a function of how many series from the held-out family are
+labelled first. The level gap is closable, but by steady accumulation rather
+than a few calibration points.}
+\label{tab:fewshot}
+\small
+\begin{tabular}{rrr}
+\toprule
+labelled series \(k\) & MAE-skill & mean \(R^2\) \\
+\midrule
+0  & \num{0.198} & \num{-0.212} \\
+1  & \num{0.208} & \num{-0.170} \\
+2  & \num{0.220} & \num{-0.142} \\
+5  & \num{0.229} & \num{-0.090} \\
+10 & \num{0.254} & \num{-0.015} \\
+20 & \num{0.289} & \num{+0.061} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:fewshot} shows the gap is real and closable. Twenty labelled
+series move the mean \(R^2\) from \(-0.21\) to \(+0.06\) --- past the oracle
+threshold the zero-shot result fails --- and raise MAE-skill from \num{0.198} to
+\num{0.289}. But the curve is close to linear over this range rather than
+saturating early: one or two calibration series buy very little, and there is no
+knee after which further labelling stops helping. So the missing level
+information is distributed across the family rather than concentrated in a
+representative example, which is consistent with the level failure not being an
+extrapolation artefact (\S\ref{sec:protocol}).
+
+We note one honest qualification. The number of families with positive mean
+\(R^2\) does not rise with \(k\) (nine at \(k=0\), nine at \(k=10\)); the gain
+is the poorly-transferring families becoming less poor, not additional families
+crossing zero. Monotone error counters remain negative at every \(k\) tested.
+
+\section{Threats to validity}
+\label{sec:threats}
+
+The full register is maintained in \texttt{OPEN\_ISSUES.md} and each item is
+cited from the text above. The load-bearing ones are:
+
+\begin{description}
+  \item[\oi{1}] Ganglia's sampling irregularity confounds instrumentation with
+        signal physics. Sampling regularity is therefore carried as a covariate
+        and reported separately.
+  \item[\oi{2}] The monitoring system changes over the campaign.
+  \item[\oi{6}] No neural tier has been run; no claim of the form ``not even
+        deep models help'' is licensed.
+  \item[\oi{7}] The error floor is an estimate with a known bias direction, not
+        an information-theoretic bound.
+  \item[\oi{11}] Permutation entropy is biased downward by quantisation, and
+        quantisation varies by family, so entropy is interpreted only alongside
+        the measured quantisation step.
+\end{description}
+
+\section{Conclusion}
+
+We set out to show that the difficulty of forecasting HPC telemetry is an
+intrinsic, measurable property of the signals. Half of that survives. Difficulty
+is not a modelling deficiency: across four tiers spanning naive baselines to
+neural networks, more capacity produced less skill, and beyond three hours
+nothing beat repeating the last value.
+
+The other half holds, in a more specific sense than we set out to show. The
+measures transfer to an unseen family in \emph{ordering} --- median
+within-family Spearman \(+0.52\), positive in \emph{all} \num{15} families
+and significant for \num{10} --- and in \emph{level} they beat the best
+family-blind predictor in \num{13} of \num{15} families by a median \num{21}\%,
+while falling well short of an oracle that knows the family's mean. Two controls
+confirm this is a property of the data and not of the method: arbitrary groups
+transfer easily (\(R^2 = +0.35\), \(p<0.001\)), and a synthetic portable law is
+recovered by the identical pipeline at \(R^2 = +0.25\), matching an oracle
+handed the true generating parameter. So there is a portable component of
+forecast difficulty; it is strongest ordinally and real but partial in level.
+
+A methodological point travels with that result, and we think it generalises
+beyond this dataset. Reported as a raw \(R^2\), our transfer looks worse than
+the synthetic arm in which skill was permuted at random and no relation exists
+at all (\(-0.17\) against \(-0.07\)). \(R^2\)'s comparator is an oracle that
+already knows the mean of the group being predicted, and its denominator
+degenerates on homogeneous groups --- our alarm-state family is predicted to a
+mean absolute error of \num{0.033} against a baseline of \num{0.600}, a
+\num{95}\% reduction, and scores \(R^2=-2.56\), the worst of any family here. Grouped cross-validation summarised by \(R^2\) will
+systematically understate transfer wherever groups are internally homogeneous,
+which in telemetry they very often are.
+
+What blocks the level from transferring is extrapolation in feature space, and
+the evidence for it is an asymmetry rather than a single correlation. How far a
+held-out family lies outside the region its training families occupy predicts
+the magnitude of that family's calibration error at Pearson \(+0.85\), while
+predicting its within-family ordering at Spearman \(+0.01\). A mechanism that
+damages the offset and leaves the ranking intact is exactly what the observed
+result is.
+
+This has to be stated carefully, because a coarser version of the same idea is
+excluded. Making the *generating parameter* disjoint across families, as the
+synthetic arm of \S\ref{sec:protocol} does, collapses the ordering along with
+the level; M100's ordering survives. Feature-space extrapolation and
+parameter-space disjointness are therefore not the same condition, and only the
+first is consistent with what we observe. Correlating extrapolation distance
+against \(R^2\) rather than against the level bias hides this entirely --- the
+correlation there is a negligible \(-0.11\), because \(R^2\) sums the two
+failures the mechanism separates.
+
+That distinction is the practical result. An operator facing an unfamiliar
+signal family can use a model-free profile to decide which of its signals to
+attempt first, and can estimate how hard they will be substantially better than
+by guessing --- but not as well as someone who has already worked with that
+family. The remaining gap is closable by labelling, but not cheaply: twenty
+series measured from the new family move the mean \(R^2\) from \(-0.21\) to
+\(+0.06\), and the curve is near-linear over that range, so there is no small
+calibration set that suffices (\S\ref{sec:fewshot}).
+
+For operators the practical reading is narrower than we hoped but still useful:
+on this data, at these horizons, a persistence forecast is a strong default ---
+significantly better than every heavier tier we tested, at every horizon --- and
+the burden of proof lies with any claim that a larger model improves on it.
+
+\section*{Disclosure}
+
+The author is a co-author of the M100 ExaData dataset paper~\citep{borghesi2023m100}
+analysed here. No part of this study was performed as part of that data-collection
+campaign, and the analysis uses only the public release.
+
+\section*{Data and code availability}
+
+All code, the versioned literature query set, the screening table, and every
+derived table are at
+\url{https://github.com/MSKazemi/hpc-signal-forecastability}. The underlying
+measurements are the public M100 ExaData release~\citep{borghesi2023m100}.
+Results reproduce from the committed derived tables without downloading raw
+data.
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}

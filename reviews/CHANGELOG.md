@@ -279,3 +279,37 @@ was the queued citation. Per the loop's early-stop rule, round 07 is the final r
 ### Final state
 18 pp., 14 references (6 read in full), zero undefined references, zero placeholders, 154 tests
 passing, every number traceable to a committed CSV.
+
+---
+
+## Round 08 — 2026-08-06 — the round-07 stop was premature
+
+**Snapshot:** `paper/versions/main-r08.tex` (18 pp. before, 19 after)
+**Review:** `reviews/round-08.md`
+
+Round 07 recorded the stop condition as met. Two new issues then appeared, one BLOCKING, so the
+loop reopened. Worth recording as a lesson about the stop rule: it tests whether *a round* found
+nothing, which is not the same as the work being finished.
+
+### Verified, not authored
+**OI-15** was written and applied to the paper between rounds, and it is correct: R²'s comparator is
+the mean of the *held-out* family — an oracle the model cannot have. Mean R² −0.167 against the
+family-blind baseline's −18.35; on fractional error reduction, 13 of 15 families transfer at a
+median 21%. All 17 numbers in the rewrite verified against `link_cv.csv`, `link_null.csv` and
+`protocol_control.csv`.
+
+### Applied this round
+
+| ID | Change | Why |
+|---|---|---|
+| C9 | Corrected the misattributed worst fold | The paper read "ranging from +0.42 to −2.56 (monotone error counters)". The −2.56 fold is **alarm states**; counters score −1.83. This inverts the argument: alarm states are the family the model predicts *best* (95% error reduction) and carry the *worst* R², while the one genuine failure scores better on it. The criteria do not merely differ in scale — they disagree about which family failed, and the paper now says so. |
+| C10 | Fixed two stale values in the alarm-state example, in §5.4 **and** the conclusion | MAE given as 0.036 (that is the standard deviation); actual 0.033. R² given as −2.05; actual −2.56. |
+
+### Verification
+21 numbers checked against the committed tables; 2 stale strings confirmed absent from the compiled
+PDF. Paper builds at 19 pp., zero undefined references.
+
+### Still open (unchanged from FINAL.md)
+No sequence model (OI-6); no bound in MASE units; DFA-1 fit quality unreported (OI-14); three
+references citing a version of record while a preprint was read; eight of fourteen references
+unread; and no independent review.

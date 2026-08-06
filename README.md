@@ -151,12 +151,24 @@ worse than persistence, *and* substantial extractable structure remains in the c
 families. So the conclusion is not "these signals are unforecastable" but "the model classes tried
 are the wrong ones for them."
 
-Two caveats. The ceiling is an **estimate, not a bound** — the Lempel–Ziv estimator converges from
-above at these series lengths, so it under-reports by about 0.01 and 18% of series exceed it. That
-bias makes the headroom figures *lower* bounds, so the model-limited reading is the conservative
-one. And the ceiling concerns one-step accuracy on a 16-level alphabet, whereas the study's skill is
-MASE at four steps on continuous values: headroom shows the information is present, not that a
-forecaster can convert it into MASE.
+**The headroom is real, but not easily reached.** A gap only means something if some estimator can
+close part of it, so the cheapest candidate was fitted: a first-order Markov predictor on the same
+symbols, estimated causally on each series' first half. It claims **none** of the gap — scoring
+*below* persistence in 13 of 17 families (power −0.057, CPU utilisation −0.051, network −0.044) and
+above it in none by more than 0.004. So the unclaimed predictability is not carried by first-order
+symbol transitions; it lies in longer context, in the continuous values symbolisation discards, or
+in exogenous covariates no univariate model here sees.
+
+**Two caveats.** The ceiling is an **estimate, not a bound**, and its error *changes sign* across
+the entropy range: calibrated against sources of known rate, it over-states by +0.22 at 3.98 bits
+and under-states by −0.05 at 1.43 bits, because the estimator saturates near 3.6 bits and cannot
+reach 4.0 at any length. An earlier version of this README claimed the bias was uniformly downward
+and headroom therefore a lower bound; that was wrong at exactly the end of the range where the
+headroom result lives. What the calibration does support is narrower and enough: over the rates
+these families occupy (0.03–2.97 bits) the error is within about ±0.05, well inside the headroom
+reported. Second, the ceiling concerns one-step accuracy on a 16-level alphabet whereas the study's
+skill is MASE at four steps on continuous values — headroom shows the information is present, not
+that a forecaster can convert it into MASE.
 
 **5. This is not an instrumentation artefact.** Dropping the sampling and quantisation covariates
 *improves* the linking model slightly (−0.14 vs −0.16), and using them alone collapses it (−15.0).

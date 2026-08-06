@@ -109,9 +109,14 @@ or better: no model can improve them. The other nine families carry
 \num{1}--\num{3} bits per step, of which persistence leaves \num{12} to \num{31}
 percentage points of next-step accuracy unclaimed. So ``hard to forecast'' names
 two different situations, and only the first is a property of the signals.
-(The Lempel-Ziv estimator converges from above at these series lengths, so the
-ceiling is an estimate rather than a bound and reported headroom is a lower
-bound; we validate the direction against sources with known entropy rate.)
+Two caveats travel with this. The ceiling is an estimate rather than a bound,
+and its error changes sign across the entropy range --- we calibrate it against
+sources of known rate and find it bounded by \(\pm\num{0.05}\) over the range
+these families occupy, which is well inside the headroom reported. And the
+headroom, though real, is not easily reached: a first-order Markov predictor on
+the same symbols claims none of it, scoring below persistence in \num{13} of
+\num{17} families. The unclaimed structure is therefore not in first-order
+symbol transitions, which narrows where it can be.
 
 Two controls establish that this is a property of the data rather than of the
 method, and a third shows why the choice of criterion decides the answer. The
@@ -620,19 +625,26 @@ actually achieves on the \emph{same} alphabet --- persistence because
 \S\ref{sec:skill} finds it the strongest forecaster here, so the comparison
 is not against a straw man.
 
-\textbf{This is an estimate, not a bound, and we validated the direction of its
-error rather than assuming it.} On Markov chains whose entropy rate is known in
-closed form, the Lempel-Ziv estimator converges from \emph{above} at the series
-lengths available: at \(p(\text{stay})=0.99\) the true rate is \num{0.076} bits
-and the estimate at \(n=2000\) is \num{0.127}, closing only near
-\(n=16000\) --- far beyond the \(\approx\num{3000}\) samples a month of
-15-minute data provides. The ceiling is therefore \emph{under}-reported by
-\(\approx\num{0.01}\), and \num{248} of \num{1402} series (\num{18}\%) exceed
-it. That bias direction is what makes the estimate usable: reported headroom is
-a \emph{lower} bound on true headroom, so "these models leave predictability
-unclaimed" is the conservative reading, while "this family is at its limit"
-cannot be established from a small positive gap and we assert it only where the
-gap is zero or negative.
+\textbf{This is an estimate, not a bound, and its error changes sign across the
+entropy range.} Calibrated against 16-state Markov sources whose rate is known
+in closed form, at the \(n=2000\) this data provides, the estimated ceiling errs
+by \(+0.22\) at a true rate of \num{3.98} bits, \(+0.04\) at \num{3.19},
+\(-0.01\) at \num{2.42} and \(-0.05\) at \num{1.43}. The mechanism is
+saturation: on i.i.d. uniform symbols, true rate \num{4.0}, the estimator
+returns \num{3.48} at \(n=1000\) and still only \num{3.62} at \(n=16000\), so
+near-random series receive a ceiling roughly \num{0.24} too generous and that
+error does \emph{not} shrink with more data. At the predictable end the error
+reverses, which is why \num{248} of \num{1402} series (\num{18}\%) exceed their
+own ceiling.
+
+We state this rather than assert a convenient direction, because a natural
+reading --- that the ceiling under-states and headroom is therefore a lower
+bound --- is what we first wrote and is wrong at exactly the end of the range
+where the headroom result lives. What the calibration does license is narrower
+and sufficient: across the estimated rates M100 actually occupies
+(\num{0.03}--\num{2.97} bits) the error is bounded by about \(\pm\num{0.05}\),
+so a headroom above that is evidence and one below it is not. The measure would
+not be usable at all on series approaching \num{3.5} bits, and none here do.
 
 \begin{table}[t]
 \centering
@@ -680,11 +692,26 @@ accuracy unclaimed.
 
 \textbf{This qualifies \S\ref{sec:skill} rather than contradicting it.} Both
 hold: the model classes we tried --- boosted trees and lag-window networks,
-forecasting recursively --- do worse than persistence, \emph{and} substantial
-extractable structure demonstrably remains in the continuous physical families.
-The defensible conclusion is therefore not that these signals are
-unforecastable, but that the model classes tried are the wrong ones for them.
-That is a sharper claim than a null, and it points somewhere.
+forecasting recursively --- do worse than persistence, \emph{and} extractable
+structure remains in the continuous physical families beyond the calibrated
+error of the estimate.
+
+\textbf{The headroom is real but not easily reached, and we tested that rather
+than assuming either way.} A gap between achieved accuracy and a ceiling is only
+interesting if some estimator can close part of it, so we fitted the cheapest
+candidate: a first-order Markov predictor on the same symbols, transition matrix
+estimated causally on the first half of each series and evaluated on the second,
+falling back to persistence on unseen states. It claims \emph{none} of the gap.
+Its median accuracy is below persistence in \num{13} of \num{17} families --- by
+\num{0.057} for power, \num{0.051} for CPU utilisation, \num{0.044} for network
+--- and above it in none by more than \num{0.004}.
+
+So the unclaimed predictability is not carried by first-order transitions
+between symbols. Whatever the continuous physical families retain lies in longer
+context, in the continuous values that symbolisation discards, or in exogenous
+covariates none of our univariate models see. That is a narrower and more useful
+statement than "the model classes tried are the wrong ones", and it is the one
+the evidence supports: we have shown where the structure is \emph{not}.
 
 One caveat bounds what the comparison licenses. The ceiling concerns
 \emph{one-step} next-symbol accuracy on a \num{16}-level alphabet; our skill
@@ -875,9 +902,11 @@ with positive within-family ordering from \num{14} of \num{15} to \emph{all}
 
 Jointly, the raw picture looks poor: holding out each of \num{15} families in
 turn gives a mean out-of-sample \(R^2\) of \(-0.17\), a median of \(+0.14\),
-positive for \num{10} of the \num{15}, ranging from \(+0.42\) to \(-2.56\)
-(monotone error counters). Reported alone that number is
-misleading in three ways, and Table~\ref{tab:transfer} shows why.
+positive for \num{10} of the \num{15}, ranging from \(+0.42\) to \(-2.56\).
+The worst fold is \emph{not} the family that genuinely fails --- it is alarm
+states, which the model predicts more accurately than any other. Reported alone
+that number is misleading in three ways, and Table~\ref{tab:transfer} shows
+why.
 
 \emph{\(R^2\) is scored against an oracle, not against a usable baseline.}
 \(R^2\) is \(1-\mathrm{SSE}/\mathrm{SST}\), and \(\mathrm{SST}\) is taken about
@@ -888,17 +917,19 @@ which is precisely the quantity unavailable to a model that has never seen it.
 than nothing}. The distinction is not academic here, because the denominator
 degenerates whenever a family's series have similar skill. Alarm states are the
 clearest case: their skills have a standard deviation of \num{0.036}, the model
-predicts every held-out series to a mean absolute error of \num{0.036} against
-\num{0.600} for the best family-blind predictor --- a \num{94}\% reduction ---
-and \(R^2\) records \(-2.05\).
+predicts every held-out series to a mean absolute error of \num{0.033} against
+\num{0.600} for the best family-blind predictor --- a \num{95}\% reduction ---
+and \(R^2\) records \(-2.56\), the worst score of any family in the study.
 
 Scoring the same folds the way this paper scores forecasts everywhere else, as
 a fractional reduction in absolute error against a baseline
 (\(1-\mathrm{MAE}_{\text{model}}/\mathrm{MAE}_{\text{baseline}}\), the same
 construction as MASE), the picture inverts: \num{13} of \num{15} families beat
-the family-blind predictor, by a median \num{21}\% reduction in error. The one
-substantive failure is monotone error counters, at \num{68}\% \emph{worse} than
-baseline. The synthetic control of \S\ref{sec:protocol} makes the point sharpest:
+the family-blind predictor, by a median \num{21}\% reduction in error. The one substantive failure is monotone
+error counters, at \num{68}\% \emph{worse} than baseline --- and on \(R^2\)
+they score \(-1.83\), \emph{better} than the alarm states the model handles
+almost perfectly. The two criteria do not merely differ in scale; they disagree
+about which family failed. The synthetic control of \S\ref{sec:protocol} makes the point sharpest:
 the arm with skill permuted across series, containing no relation whatever,
 scores \(R^2=-0.07\) --- \emph{better} than M100's \(-0.17\) --- while its
 MAE-skill is \(+0.002\) against M100's \(+0.21\) and its within-family Spearman
@@ -1072,8 +1103,8 @@ the synthetic arm in which skill was permuted at random and no relation exists
 at all (\(-0.17\) against \(-0.07\)). \(R^2\)'s comparator is an oracle that
 already knows the mean of the group being predicted, and its denominator
 degenerates on homogeneous groups --- our alarm-state family is predicted to a
-mean absolute error of \num{0.036} against a baseline of \num{0.600} and scores
-\(R^2=-2.05\). Grouped cross-validation summarised by \(R^2\) will
+mean absolute error of \num{0.033} against a baseline of \num{0.600}, a
+\num{95}\% reduction, and scores \(R^2=-2.56\), the worst of any family here. Grouped cross-validation summarised by \(R^2\) will
 systematically understate transfer wherever groups are internally homogeneous,
 which in telemetry they very often are.
 

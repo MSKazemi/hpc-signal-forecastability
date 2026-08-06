@@ -858,16 +858,34 @@ def max_predictability(rate: float, n_states: int) -> float:
     0.85      0.686       0.712      0.887       0.882
     ========  ==========  =========  ==========  ========
 
-    The gap closes only around ``n = 16000``, far above the ~3000 samples a
-    month of 15-minute data provides. Consequently a genuinely near-deterministic
-    series can *exceed* its estimated ceiling, and on M100 roughly 18% do. The
-    bias direction is the useful part: because the ceiling is under-estimated,
-    any headroom it reports (ceiling minus achieved) is a *lower* bound on the
-    true headroom, so "these models leave predictability unclaimed" is the
-    conservative reading and is safe to assert. The opposite claim — that a
-    family sits *at* its information limit — is the one this estimator cannot
-    establish on its own, and is stated only where the gap is negative or zero
-    by a margin larger than the bias above.
+    **The sign of that bias depends on where the source sits, and an earlier
+    version of this docstring got it wrong by generalising from the predictable
+    end.** Calibrated against a 16-state Markov source at ``n = 2000``:
+
+    ========  ==========  ==========  ==========
+    p(stay)   true rate   true ceil.  ceil. error
+    ========  ==========  ==========  ==========
+    0.05      3.978       0.109       **+0.219**
+    0.20      3.741       0.250       **+0.118**
+    0.40      3.186       0.438       +0.043
+    0.60      2.420       0.625       -0.006
+    0.80      1.429       0.812       -0.052
+    0.95      0.456       0.953       -0.023
+    ========  ==========  ==========  ==========
+
+    The estimator saturates near 3.6 bits: on i.i.d. uniform symbols, whose true
+    rate is 4.0, it returns 3.48 at ``n = 1000`` and only 3.62 at
+    ``n = 16000``, so the ceiling is over-stated by roughly 0.24 and that error
+    does **not** shrink with more data. Near-random series therefore get a
+    ceiling that is far too generous, while near-deterministic ones get one
+    slightly too tight (which is why 18% of M100 series exceed it).
+
+    What this licenses: within the entropy range M100 actually occupies
+    (estimated rates 0.03--2.97 bits), the error is bounded by about
+    :math:`\\pm 0.05`, so headroom larger than that is evidence and headroom
+    smaller than that is not. It does *not* license reading headroom as a lower
+    bound, and it does not license the measure at all on series whose estimated
+    rate approaches 3.5 bits.
 
     Returns 1.0 for a deterministic sequence and 1/N for a maximally uncertain
     one. The right-hand side is monotone decreasing in ``Pi``, so the root is
@@ -944,6 +962,48 @@ def symbolic_persistence_accuracy(x: np.ndarray, max_alphabet: int = 16) -> floa
     if alphabet <= 1:
         return 1.0  # a constant series is repeated correctly every step
     return float(np.mean(symbols[1:] == symbols[:-1]))
+
+
+def symbolic_markov_accuracy(
+    x: np.ndarray, max_alphabet: int = 16, train_fraction: float = 0.5
+) -> float:
+    """Next-symbol accuracy of a first-order Markov predictor, fitted causally.
+
+    Companion to :func:`symbolic_persistence_accuracy`, and the reason both
+    exist. The ceiling from :func:`max_predictability` says how much
+    predictability is *present*; persistence says how much the study's best
+    forecaster actually *takes*. Neither shows that the difference between them
+    is reachable — a gap could in principle be information no estimator can use.
+
+    This is the cheapest possible test of that. The transition matrix is
+    estimated on the first ``train_fraction`` of the series and the most likely
+    successor is predicted on the remainder, so it is strictly causal and uses
+    no more information than persistence does. If even this recovers part of the
+    gap, the headroom is real and reachable rather than a defect of the bound.
+
+    Unseen states at prediction time fall back to persistence, which is the
+    conservative choice: it cannot invent accuracy the model did not earn.
+    """
+    x = _clean(x)
+    if x.size < 64:
+        return NAN
+    symbols, alphabet = _symbolise(x[: min(x.size, 2000)], max_alphabet)
+    if alphabet <= 1:
+        return 1.0
+
+    cut = int(symbols.size * train_fraction)
+    if cut < 8 or symbols.size - cut < 8:
+        return NAN
+
+    counts = np.zeros((alphabet, alphabet))
+    np.add.at(counts, (symbols[: cut - 1], symbols[1:cut]), 1.0)
+    seen = counts.sum(axis=1) > 0
+    successor = counts.argmax(axis=1)
+
+    current = symbols[cut - 1 : -1]
+    actual = symbols[cut:]
+    predicted = np.where(seen[current], successor[current], current)
+    return float(np.mean(predicted == actual))
 
 
 def compression_ratio(x: np.ndarray, levels: int = 256, max_length: int = 16384) -> float:
