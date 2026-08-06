@@ -233,3 +233,15 @@ part that works with no local data at all.
 **T13 holds at 19.** Nine rounds have not displaced it, and round 09 strengthened rather than
 qualified the claim it makes: the "rank for free" half is unchanged and the "calibrate with twenty"
 half improved once the k-sweep was restated on a matched family set.
+
+## Final decision (round 10)
+**T13 wins at 19/20** and is set in the paper:
+
+> *Rank for Free, Calibrate with Twenty: Transferring Forecast-Difficulty Estimates Across Eight
+> HPC Telemetry Families*
+
+It led from round 06 and was not displaced across 21 candidates in ten rounds. Both halves are
+literally what the paper shows, and round 09 strengthened the second: the calibration result
+improved from −0.21 → +0.06 to −0.26 → +0.06 once the k-sweep was restated on a family set constant
+across its own rows. The closest challenger, T21 (18), drops the ordering half — the part that
+works with no local data at all, and the reason the paper is worth reading.

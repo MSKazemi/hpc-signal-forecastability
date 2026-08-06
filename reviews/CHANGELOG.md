@@ -356,3 +356,33 @@ No sequence model (OI-6); no bound in MASE units; DFA-1 fit quality unreported (
 re-runs `make reproduce` automatically, so a stale table stays invisible until re-run by hand
 (OI-16); three references citing a version of record while a preprint was read; eight of fourteen
 references unread; no independent review.
+
+---
+
+## Round 10 — 2026-08-06 — the figures, and a proper stop
+
+**Snapshot:** `paper/versions/main-r10.tex` (19 pp., unchanged)
+**Review:** `reviews/round-10.md` · **Consolidated:** `reviews/FINAL.md`
+
+Round 09's lesson was that re-running finds defects in classes while re-reading finds them one at a
+time. Round 09 applied that to the tables; this round applied it to the figures, the one artefact
+class left uncovered.
+
+**No new Critical or Major findings.** All six figures regenerate from `09_figures.py` with
+byte-identical text content — the staleness that produced OI-16 in the tables does not exist here.
+Rendered and inspected visually: Figure 4's sixteen points match `skill_by_tier.csv` at every
+tier × horizon, and Figure 5's per-family headroom labels match `ceiling_gap.csv` across all 17
+families, with its shaded band matching the 0.237–0.304 calibrated over-statement. The ceiling
+section's derived claims recompute exactly (0.0669, 0.4406, max shortfall 0.0075).
+
+Two Minor points recorded and deliberately not changed, both in `round-10.md`: the abstract's
+"12–31 percentage points" counts humidity at 0.118, consistent with the figure's own +0.12 label;
+and "four sitting at their ceiling" includes error counters, which sit 0.026 above theirs — already
+reported and explained at length in §5.6.
+
+**Title:** T13 confirmed and set. It led from round 06 and survived four further rounds against 21
+candidates.
+
+**Stop.** The loop ends here, at round 10 of 10, with the stop condition met for the right reason:
+the round that extended round 09's method to the remaining artefact class found nothing. Round 07's
+earlier stop was invalidated by evidence that arrived afterwards; this one was not.

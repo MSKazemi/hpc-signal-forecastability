@@ -1,7 +1,9 @@
 # FINAL — consolidated review history
 
-**Paper:** `paper/paper.tex` → `paper/paper.pdf`, 18 pp.
-**Loop:** 7 rounds of review → revise → re-review, stopped early on the no-new-findings condition.
+**Paper:** `paper/paper.tex` → `paper/paper.pdf`, 19 pp.
+**Loop:** 10 rounds of review → revise → re-review. The stop condition was recorded as met at
+round 07 and then invalidated by evidence arriving afterwards; it was met again, and properly, at
+round 10.
 **Repository:** https://github.com/MSKazemi/hpc-signal-forecastability (public)
 
 > **Conflict of interest, stated once and meant.** Every review in this loop was written by the
@@ -14,7 +16,7 @@
 ## What the loop changed
 
 The paper began the loop stating a conclusion its own data did not support, and ended stating a
-five-link causal argument. It went 10 → 18 pages and Major revision → Accept with minor revision.
+five-link causal argument. It went 10 → 19 pages and Major revision → Accept with minor revision.
 
 | round | the finding that mattered |
 |---|---|
@@ -24,7 +26,10 @@ five-link causal argument. It went 10 → 18 pages and Major revision → Accept
 | 04 | The mechanism is **extrapolation distance** — r = +0.78 with level bias, only −0.22 with ordering. This reversed round 03's "mechanism is open". On a scale-free metric the model wins 13/15 families, not 9/15. |
 | 05 | **Few-shot calibration**: 20 labelled series flip the mean R² positive, and help most exactly where extrapolation is worst — the prediction round 04's mechanism makes, confirmed. |
 | 06 | The **Fano ceiling is not a floor**: 77.5% of series exceed it. Reporting it as the "irreducible error" — which is what the open issue asked for — would have contradicted the paper's own data three times in four. It *is* the strongest ordinal predictor (Spearman +0.69). |
-| 07 | Cited the Fano construction. Found a **published statement of the same caveat** in a source that was read. No other findings — stop condition met. |
+| 07 | Cited the Fano construction. Found a **published statement of the same caveat** in a source that was read. No other findings — stop condition recorded as met. |
+| 08 | The stop was premature: OI-15 arrived and was correct — **R²'s comparator is an oracle** that knows the held-out family's mean, so "R² < 0" never meant "no better than nothing". Found the paper had **misattributed its own worst fold**: −2.56 is alarm states, the family it predicts *best* (95% error reduction), not the error counters that actually fail. The two criteria disagree about which family failed. |
+| 09 | Stopped reading the numbers and **re-ran the scripts**. Found a Table row that **no committed artefact reproduced** (hand-entered, three values stale), a table **stale against its own generating code** since round 03 (OI-16), a **duplicate `\label`** the build check was structurally unable to see, and a "families > 0" column that counted draws — which had the paper contradicting itself about its own experiment in two different sections. |
+| 10 | Applied round 09's method to the figures — the one artefact class it had not covered. All six regenerate identically and agree with their tables on visual inspection. **No new findings; stop condition met, this time for the right reason.** |
 
 ## The pattern worth recording
 
@@ -77,3 +82,51 @@ fallback if a question-form title is preferred for continuity.
 - **Eight of fourteen references are unread** — all paywalled, all definition-only, none credited
   with a finding.
 - **Independent review.** See the conflict statement above.
+
+---
+
+## Addendum after rounds 08–10
+
+### The stop condition was wrong once, and the reason generalises
+Round 07 recorded the loop as finished. Rounds 08 and 09 then found, between them, the single
+worst defect in the study (a table row no artefact reproduced) and a self-contradiction spanning
+two sections. The stop rule tests whether *a round* found nothing — which is not the same as the
+work being finished, and says nothing about the classes of defect no round has yet looked for.
+
+### What actually found things, ranked
+1. **Re-running the generating scripts and diffing** (round 09) — found two Critical defects in one
+   pass, neither visible in the text. Eight rounds of careful reading had missed both.
+2. **Recomputing every numeric claim from the committed tables** — found stale numbers in rounds
+   02, 04, 08 and 09. Reliable, but one at a time.
+3. **Reading for argument** — found the round-01 and round-06 reversals, where the data supported a
+   *different* conclusion rather than a wrong number. Nothing mechanical would have caught these.
+
+The order is worth stating because the cheapest check was the most productive one and it was
+introduced ninth.
+
+### Four rounds found the same shape of error
+A claim that was natural to make and contradicted by the study's own data: the outlier-driven mean
+(round 04), disjoint bands as the mechanism (round 03), entropy as merely redundant (round 02), and
+the Fano ceiling as an error floor (round 06). Round 08 adds a fifth — reading "R² < 0" as "no
+better than nothing" — and round 09 a sixth, where a mislabelled column had the paper asserting in
+§5.3 what it correctly denied in §5.5. In every case the correction made the paper's claim
+narrower and its evidence stronger.
+
+### Title
+**T13 — "Rank for Free, Calibrate with Twenty: Transferring Forecast-Difficulty Estimates Across
+Eight HPC Telemetry Families"** (19/20), set in the paper. It led from round 06 and survived four
+further rounds against 21 candidates. Round 09 strengthened it: the "rank for free" half is
+untouched, and the "calibrate with twenty" half improved from −0.21 → +0.06 to −0.26 → +0.06 once
+the k-sweep was restated on a family set that is constant across its own rows.
+
+### What remains open
+- **OI-6** — no true sequence model (TCN, PatchTST) has been run; the capacity claim rests on
+  gradient-boosted trees and a small MLP.
+- **No bound in MASE units.** The Fano ceiling is next-symbol accuracy on a discretised alphabet;
+  the forecast results are MASE. The two are not on one axis and the paper does not pretend they are.
+- **OI-14** — DFA-1 fit quality is unreported and DFA-2 was not run.
+- **OI-16** — nothing re-runs `make reproduce` automatically. This round's finding was found by
+  hand, and the next one of its kind will be too until a gate does it.
+- **References** — 8 of 14 unread (paywalled, definition-only, no finding attributed); 3 cite a
+  version of record while a preprint was read.
+- **Independent review.** Still the largest gap, and unchanged by ten rounds of self-review.
