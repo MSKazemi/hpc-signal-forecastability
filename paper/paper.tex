@@ -96,7 +96,7 @@ which is what drives the raw \(R^2\) to a mean of \(-0.19\). Correcting the
 level bias moves the mean to \(-0.01\) and makes \num{10} of \num{15} families
 positive. A random-group null settles what this means: the same protocol run
 with arbitrary groups of matched size transfers easily (median \(R^2\)
-\(+0.33\) across draws, every group positive, \(p<0.001\) against the observed
+\(+0.35\) across draws, every group positive, \(p<0.001\) against the observed
 value over \num{100} draws), so the difficulty is specific to crossing family boundaries
 rather than a limitation of the protocol. Practically, the profile can rank
 which signals in an unfamiliar family will be harder, but not say how hard.
@@ -337,7 +337,7 @@ than assigned a spuriously large score.
 \subsection{Pipeline and cost}
 \label{sec:pipeline}
 
-The study is an eleven-stage pipeline, each stage writing a committed artefact so
+The study is a twelve-stage pipeline, each stage writing a committed artefact so
 that any stage can be re-run without repeating the ones before it
 (Table~\ref{tab:pipeline}). Bulk intermediates are sharded per partition and
 skipped when present, which makes an interrupted run resumable rather than
@@ -373,6 +373,7 @@ once pinned.
 9 & figures & figures + backing CSV per figure \\
 10 & literature & screening table, bibliography \\
 11 & direct control & recursive vs direct forecasting \\
+12 & protocol control & synthetic arms with known ground truth \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -613,6 +614,29 @@ transferring, it is not simply that families occupy disjoint parameter ranges.
 We report this as an open mechanism rather than adopt the explanation the arm
 was built to test.
 
+\paragraph{What blocks the level.} The synthetic \texttt{disjoint} arm rules
+out the crudest version of the extrapolation story, but not the idea itself. For
+each held-out family we measure how far its feature distribution sits outside
+the training families' support. That distance predicts the level error strongly
+(\(r=+0.78\) against the absolute level bias) and the raw \(R^2\) nearly as
+strongly (\(-0.66\)), while barely touching the ordering (\(-0.22\)). Error
+counters sit furthest outside the training support of any family and are also
+the worst transfer case on every metric.
+
+The mechanism is therefore extrapolation, but selectively: predicting a family
+whose measures lie outside anything seen in training biases the \emph{level} of
+the prediction without destroying the \emph{ranking}. The synthetic arm failed
+to reproduce this because forcing families into non-overlapping bands removes
+the shared structure the ranking depends on, which is a stronger intervention
+than the real data applies.
+
+\paragraph{A scale-free view.} Because \(R^2\) is dominated by that level
+error, we also report mean absolute error against the same baseline. On that
+metric the model beats predicting the training mean for \num{13} of \num{15}
+families (mean skill \num{+0.20}), against \num{9} of \num{15} on \(R^2\).
+Both are correct; they answer different questions, and a reader should not take
+either alone as the summary.
+
 One further comparison is worth stating plainly because it looks damning in
 isolation. On raw \(R^2\) M100 (\num{-0.189}) transfers \emph{worse} than
 synthetic data with no relation at all (\texttt{no\_law}, \num{-0.070}). That
@@ -648,7 +672,7 @@ family will be harder than which, but not how hard any of them will be.
 
 \emph{The failure is specific to family boundaries.} Running the identical
 protocol with \emph{random} groups of matched size gives a median \(R^2\) of
-\(+0.33\) across draws (2.5--97.5\% range \([0.22, 0.38]\), mean \(+0.32\))
+\(+0.35\) across draws (2.5--97.5\% range \([0.22, 0.38]\), mean \(+0.32\))
 with every group positive,
 against \(-0.19\) and \num{60}\% for the real families; over \num{100} draws
 no random grouping was as poor as the observed one (\(p<0.001\)). Arbitrary
@@ -738,7 +762,7 @@ show. The measures transfer to an unseen family in \emph{ordering} --- median
 within-family Spearman \(+0.40\), significant for \num{10} of \num{15}
 families --- but not in \emph{level}, which is what drives the raw \(R^2\)
 negative. Two controls confirm this is a property of the data and not of the method:
-arbitrary groups transfer easily (\(R^2 = +0.33\), \(p<0.001\)), and a
+arbitrary groups transfer easily (\(R^2 = +0.35\), \(p<0.001\)), and a
 synthetic portable law is recovered by the identical pipeline at
 \(R^2 = +0.25\). So there is a portable component of forecast difficulty, and
 it is ordinal.

@@ -134,3 +134,39 @@ winner for the final round.
 Round 03 found substantive issues again, but of a different kind: rounds 01–02 were the text lagging
 the tables, round 03 was a genuinely new experiment arriving. The loop continues. If round 04 finds
 neither a stale number nor a new experiment, that is the stop condition.
+
+---
+
+## Round 04 — 2026-08-06
+
+**Snapshot:** `paper/versions/main-r04.tex` (13 pp. before, 14 after)
+**Review:** `reviews/round-04.md` · **Recommendation:** Minor revision
+
+### Applied
+
+| ID | Change | Why |
+|---|---|---|
+| C6 | **Reversed round 03's "mechanism is open"** — extrapolation distance explains the level failure | `extrapolation_distance` correlates +0.78 with absolute level bias, −0.66 with raw R², and only −0.22 with within-family Spearman. It predicts the level error and barely touches the ordering, which is exactly the asymmetry the paper reports. Error counters sit furthest outside training support (3.73 vs 2.45 next) and are worst on every metric. |
+| — | Kept round 03's rejection of the synthetic disjoint arm, and reconciled the two | These are not in conflict. Forcing non-overlapping bands removes the shared structure the ranking depends on — a stronger intervention than reality applies. Real families overlap enough to share a ranking while still requiring extrapolation for the level. Round 03 was right to reject the arm as a model of M100 and wrong to conclude no mechanism was available. |
+| M9 | Added `mae_skill`: **13/15 families positive** (mean +0.20) vs 9/15 on R² | The paper's own argument is that R² is dominated by level error. Reporting only R² therefore understates the result on precisely the axis the paper calls misleading. Both metrics now shown, with the caveat that they answer different questions. |
+| M10 | Refreshed the null median +0.33 → +0.35 in four places | The null was re-run with fresh draws. |
+| Mo9 | Pipeline table 11 → 12 stages | `12_protocol_control.py` added since §4.7 was written. |
+
+### Deferred
+- **Mo8** `skill_sd_test` and `mae_baseline` are computed and unused. Recorded so a later round does
+  not rediscover them as a gap; neither is needed for a claim the paper makes.
+- **Unchanged:** three references cite a version of record while a preprint was read; the AAAI PDF
+  for Borghesi et al. 2019 unobtainable. Needs institutional access.
+
+### Verification
+8/8 changed numbers verified against `link_cv.csv` and `link_null.csv`; stale `+0.33` confirmed
+absent. Paper builds at 14 pp., zero undefined references.
+
+### Titles
+T10–T12 added. **Leader is now T12** — "Model-Free Predictability Measures Rank HPC Telemetry
+Correctly but Cannot Calibrate It" — which overtakes T9 by using *calibrate*, the established term
+for this failure mode.
+
+### Convergence note
+Third consecutive round where part of the finding was the manuscript lagging the tables. But round
+04 also produced a genuine reversal (C6), so the stop condition is **not** met. The loop continues.

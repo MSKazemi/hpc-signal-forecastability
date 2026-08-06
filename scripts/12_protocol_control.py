@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage 11 — does the linking protocol work at all?
+"""Stage 12 — does the linking protocol work at all?
 
 The study's headline is a *negative* result: predictability measures do not
 transfer across signal families. A negative result carries a standing objection
@@ -24,9 +24,17 @@ study uses — the same measure functions, the same forecast harness, the same
     The same law, but each family occupies its own narrow, non-overlapping band
     of the parameter. The relation is exactly as real as in ``portable``; the
     only difference is that predicting a held-out family requires
-    *extrapolating* to a parameter range never seen in training. This is the
-    hypothesis for what M100 actually does, and the arm exists to show what that
-    situation looks like: R² collapses while the within-family ordering survives.
+    *extrapolating* to a parameter range never seen in training.
+
+    This arm was added to test a specific hypothesis about M100 — that its level
+    failure is band-disjoint extrapolation — and **it refuted it.** Under
+    disjoint bands the within-family ordering does *not* survive: median
+    Spearman is −0.05, against +0.50 on M100 and +0.58 on ``portable``. M100's
+    ordering transfer therefore looks like a genuine shared law, not like
+    extrapolation to unseen parameter ranges. The arm is kept because a refuted
+    hypothesis with a control behind it is worth more than an untested one, and
+    because it bounds what disjointness alone can explain. The mechanism behind
+    M100's level failure remains open.
 
 ``no_law``
     Skill is permuted across series, destroying any relation while leaving the

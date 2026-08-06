@@ -4,16 +4,20 @@ A predictability study of the monitoring telemetry of CINECA's **Marconi100** (M
 supercomputer, using the public
 [M100 ExaData](https://doi.org/10.1038/s41597-023-02174-3) release.
 
-> **Status: the central hypothesis was tested and holds only weakly.**
+> **Status: the central hypothesis holds ordinally, and fails on level.**
 >
-> The study set out to show that forecast difficulty is predictable from model-free properties of
-> a signal. Across signal families it transfers weakly — positive for 9 of 15 families, near zero
-> in median. The suite was built so this outcome was reachable; see
-> [What the study found](#what-the-study-found).
+> The study set out to show that forecast difficulty is predictable from model-free properties of a
+> signal. Measured against a baseline a model could actually have, it transfers: **13 of 15 signal
+> families beat the family-blind predictor, by a median 19% reduction in error.** What does not
+> transfer is the *level* — the measures rank series inside a family they have never seen
+> (Spearman ρ = 0.50, positive in 14 of 15 families) but cannot say where that family sits.
 >
-> Read [`OPEN_ISSUES.md`](OPEN_ISSUES.md) before relying on anything. Twelve threats to validity
-> are registered there, most written before the results existed; no cited work has yet been
-> checked against its source paper.
+> Earlier drafts of this README reported no transfer at all. That was a defect in the statistic,
+> not a finding: R²'s comparator is an oracle that already knows the held-out family's mean skill
+> (OI-15). See [What the study found](#what-the-study-found).
+>
+> Read [`OPEN_ISSUES.md`](OPEN_ISSUES.md) before relying on anything. Fifteen threats to validity
+> are registered there, most written before the results existed.
 >
 > All series are analysed on a common **15-minute grid**. At native cadence the gaps fragment every
 > family beyond use — a Ganglia month has 43,199 slots but a longest gap-free run of 149 — so this
@@ -21,15 +25,58 @@ supercomputer, using the public
 
 ## What the study found
 
-**1. Predictability measures transfer across families only weakly.** Holding out each of 15
-families in turn (1,082 series) gives a **median** out-of-sample R² of **+0.06**, positive for
-**9 of 15**, ranging from +0.25 (scheduler state) down to **−1.88** (monotone error counters).
-The mean, −0.16, is pulled below zero by the few negative families.
+**1. Predictability measures do transfer across signal families — ordinally, not cardinally.**
+Holding out each of 15 families in turn (1,082 series), against the best predictor that has never
+seen the held-out family (predict the training mean):
 
-The weakest case is explicable: monotone counters are forecast almost exactly by a drift model,
-and nothing in a profile of entropy, periodicity, memory and stationarity anticipates that a
-signal will be trivial for one specific extrapolator. That points at a missing term, not a
-misconceived programme.
+| | |
+|---|---:|
+| families beating the family-blind baseline | **13 of 15** |
+| median reduction in prediction error | **19%** |
+| within-family rank correlation (Spearman ρ), median | **+0.50** |
+| families with ρ > 0 | **14 of 15** |
+| the one genuine failure | `error_counter`, 85% *worse* than baseline |
+
+The measures reliably say *which* series inside an unseen family are the hard ones — ρ = +0.82 for
+memory, +0.83 for scheduler, +0.74 for CPU utilisation. What they cannot do is say where a new
+family sits: mean R² given the family's true level is −0.01, against −0.19 without it, so nearly
+the whole R² deficit is the unknown offset.
+
+**Why earlier drafts reported the opposite.** They used R², whose denominator is the variance of
+the held-out family about *its own* mean — so its implicit comparator is an oracle that already
+knows the answer a model is trying to predict. On a family whose series all have similar skill the
+denominator collapses. `alarm_state` is the clearest case: the model predicts every held-out
+series to within **MAE 0.036** against a baseline error of **0.600** — a 94% improvement — and R²
+records **−2.05**. The honest baseline was in the output all along, as `r2_baseline`, averaging
+**−18.35** against the model's −0.19. Registered as OI-15.
+
+**The protocol was then validated against known ground truth** (OI-13). Four synthetic arms run
+through the identical pipeline:
+
+| arm | mean R² | MAE-skill | within-family ρ |
+|---|---:|---:|---:|
+| a genuine portable law | +0.248 | +0.201 | +0.584 |
+| same, with the true generating parameter supplied | +0.233 | +0.195 | +0.576 |
+| same law, non-overlapping per-family bands | −0.096 | +0.165 | −0.050 |
+| skill permuted — no relation at all | −0.070 | **+0.002** | +0.100 |
+| **M100 (real)** | **−0.189** | **+0.192** | **+0.495** |
+
+The measures recover **103% of the oracle ceiling**, and the no-relation arm correctly scores zero,
+so the pipeline can find a law when one exists. On the two statistics that survive a degenerate
+denominator M100 resembles the *genuine law* arm; only raw R² resembles the failures. Note that the
+no-relation arm scores −0.070 while M100 scores −0.189: on the headline statistic alone the real
+data transfers worse than data containing no relation, which is as sharp a demonstration as the
+question admits that R² is the wrong summary here.
+
+**One family genuinely fails.** Monotone counters are forecast almost exactly by a drift model, and
+`error_counter` is 85% worse than baseline with ρ = −0.02. Adding direction measures
+(`monotone_fraction` = 1.00 for that family, 68% classified as unit-root) makes it *detectable*
+without making it *predictable* — it is the one place the relation does not hold.
+
+**And the mechanism for the level failure is open.** The obvious explanation — that held-out
+families occupy feature regions no training family covers — was tested and refuted twice: across
+the real folds Spearman(extrapolation distance, R²) is only −0.111, and in the synthetic control,
+genuine band-disjointness collapses within-family ordering to ρ = −0.05 where M100 holds at +0.50.
 
 **2. Individual measures do correlate with skill — but the strongest one is nearly tautological.**
 Cluster-robust over 156 metric clusters:
@@ -110,10 +157,16 @@ position:**
 > The difficulty is largely *intrinsic to the signals themselves*. It differs systematically
 > between signal families, and it can be measured **without fitting any forecaster at all**.
 
-The first half survives; the second only partly. Difficulty is not a modelling deficiency —
-bigger models do worse here, not better, significantly so at every horizon. But it is also not
-cleanly portable: measures that correlate with skill inside one family predict it only weakly for
-a family they have never seen.
+**Both halves survive, with one qualification that took a validated control to establish.**
+Difficulty is not a modelling deficiency — bigger models do worse here, not better, significantly
+so at every horizon. And it *can* be measured without fitting a forecaster: the measures transfer
+to families they have never seen, beating a family-blind baseline in 13 of 15 and ranking series
+inside an unseen family at ρ = 0.50.
+
+The qualification is that what transfers is the **ordering**, not the **level**. The measures say
+which signals in a new family are the hard ones; they do not say how hard that family is overall.
+Why the level fails to transfer is not yet explained — the obvious answer, extrapolation to unseen
+feature regions, has been tested and refuted.
 
 ## Method in one diagram
 
@@ -135,12 +188,18 @@ a family they have never seen.
   Central claim:  observed skill ≈ f(intrinsic predictability measures)
                   tested with cross-validation grouped by signal family,
                   so the relation must generalise to families it never saw.
+
+  Validated by:   the same pipeline run on synthetic data with a KNOWN law,
+                  which it recovers at 103% of an oracle's ceiling, and on
+                  synthetic data with NO law, where it correctly finds none.
 ```
 
 The relation was tested by holding out whole families, so it had to generalise to unseen signal
-physics to count. It does so only weakly (median held-out R² = +0.06, positive for 9 of 15
-families). "HPC signals are hard to forecast" remains closer to a family-specific property than a
-measurable law.
+physics to count. It does: 13 of 15 families beat a family-blind baseline, by a median 19% error
+reduction, with within-family ordering transferring at ρ = +0.50. Because that conclusion rests on
+choosing the right statistic, the protocol itself was put through a positive and a negative control
+before the conclusion was drawn (OI-13) — the study's earlier null result came from R², whose
+comparator is an oracle no model can have (OI-15).
 
 ## Why M100 ExaData is the right substrate
 

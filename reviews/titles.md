@@ -110,3 +110,34 @@ telemetry", "transfer"). Slightly flat as prose, which is the only mark against 
 actual finding in terms a reader would search for. T3 foregrounds a secondary result; T7 is more
 elegant but less findable. **T9 is the presumptive winner for the final round** unless a later
 round changes the headline again.
+
+## Round 04 candidates
+
+Round 04 supplies the mechanism: extrapolation distance predicts the level error (r=+0.78) but not
+the ordering (r=−0.22). A title can now name *why*, not just *what*.
+
+**T10 — Extrapolation Breaks the Level, Not the Ranking: Predictability Transfer Across HPC
+Telemetry Families**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 5 | 5 | 3 | 5 | **18** |
+Names the finding and its cause. "Extrapolation" is searchable; the rest of the phrase is not.
+
+**T11 — Which HPC Signals Are Hard to Forecast? Rank-Transferable, Level-Specific Predictability**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 4 | 4 | 5 | 4 | **17** |
+Question form is highly searchable and echoes the original title's framing. The subtitle's jargon
+is precise but dense.
+
+**T12 — Model-Free Predictability Measures Rank HPC Telemetry Correctly but Cannot Calibrate It**
+| accuracy | specificity | searchability | appeal | total |
+|---:|---:|---:|---:|---:|
+| 5 | 5 | 4 | 4 | **18** |
+"Rank correctly but cannot calibrate" is the finding in six words, and "calibrate" is the term the
+forecasting literature would actually use for the level failure. Strong on every axis.
+
+## Running leader after round 04
+**T12 (18)** overtakes T9. Both state the finding; T12 uses *calibrate*, which is the established
+term for exactly this failure and therefore more searchable and more precise than "level". T9
+remains the fallback if a plainer title is wanted.

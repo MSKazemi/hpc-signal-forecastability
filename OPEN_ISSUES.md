@@ -334,7 +334,39 @@ between-family comparison.
 
 ---
 
-## OI-13 — The linking protocol had no positive control `BLOCKING`
+## OI-13 — The linking protocol had no positive control `RESOLVED`
+
+> **Run, and the protocol passes.** Four arms of synthetic data through the identical pipeline,
+> 600 series across 15 families (against M100's 1,082 across 15):
+>
+> | arm | mean R² | families +ve | MAE-skill | within-family ρ |
+> |---|---:|---:|---:|---:|
+> | `portable` — a genuine portable law | **+0.248** | 13/15 | +0.201 | **+0.584** |
+> | `portable_oracle` — same, true parameter supplied | +0.233 | 13/15 | +0.195 | +0.576 |
+> | `disjoint` — same law, non-overlapping bands | −0.096 | 2/15 | +0.165 | **−0.050** |
+> | `no_law` — skill permuted | −0.070 | 6/15 | **+0.002** | +0.100 |
+> | **M100 (real)** | **−0.189** | 9/15 | **+0.192** | **+0.495** |
+>
+> The measures recover **103% of the oracle ceiling** — a model given the true generating parameter
+> does no better than the measured features — and the `no_law` arm correctly finds nothing. So
+> "we found no portable law on M100" is a statement about M100 and not about the method.
+>
+> **Where M100 actually sits.** On the two statistics that survive a degenerate denominator, M100
+> resembles `portable`: ordering ρ +0.495 against +0.584, MAE-skill +0.192 against +0.201. Only raw
+> R² resembles the failures. That is the evidence for OI-15.
+>
+> **A hypothesis this control refuted.** The `disjoint` arm was built to test the idea that M100's
+> level failure is extrapolation to parameter ranges no training family covers. It is not: under
+> genuine band-disjointness the within-family ordering collapses to ρ = −0.05, where M100 holds at
+> +0.495. An independent check agrees — across the 15 real folds, Spearman(extrapolation distance,
+> R²) is only −0.111. **The mechanism behind M100's level failure remains open**, and the paper must
+> not adopt the disjointness story.
+>
+> Also worth one line in the paper: `portable_oracle` (+0.233) scores marginally *below* `portable`
+> (+0.248), so a perfect feature would not lift transfer above what the measured features already
+> reach. That bounds how much of the residual gap can be a feature-quality problem.
+
+## OI-13 — original entry `SUPERSEDED`
 
 **Why it matters.** The study's headline is a negative result, and a negative result carries an
 objection that no amount of care about the *data* can answer: the *protocol* may be incapable of
@@ -350,7 +382,7 @@ the signature of a column with no variance, which is what regridding every serie
 about memory, came out with r = −0.05 and importance 0.001. Both are consistent with a protocol
 that is not seeing what is there.
 
-**What is being done.** `scripts/11_protocol_control.py` runs three arms of synthetic data through
+**What is being done.** `scripts/12_protocol_control.py` runs three arms of synthetic data through
 the identical pipeline — the same measure functions, the same forecast harness, the same
 `leave_one_family_out`:
 
@@ -490,6 +522,25 @@ model could actually have; R² is reported alongside with its denominator proble
 counter family is given its own paragraph as the one place transfer genuinely fails. `mae_skill`,
 `mae_baseline` and `skill_sd_test` are now first-class columns of `link_cv.csv`, and
 `tests/test_link.py` pins the `alarm_state` case so the defect cannot silently return.
+
+**The sharpest available demonstration that R² is the wrong summary here.** In the synthetic
+control (OI-13), the `no_law` arm — where skill was *permuted across series*, so no relation exists
+at all — scores mean R² **−0.070**. M100 scores **−0.189**. On the headline statistic the real data
+transfers *worse than data with no relation in it*, while its within-family Spearman (+0.495) is
+five times `no_law`'s (+0.100) and its MAE-skill (+0.192) is a hundredfold higher (+0.002). A
+statistic that ranks genuine structure below noise is not measuring what the paper is asking.
+
+**This is not metric-shopping, and the construction is the study's own.** Forecast skill in this
+paper is already defined as `1 − MAE_model / MAE_baseline` — that is what MASE is, and what
+`1 − MASE` means. `mae_skill` applies the identical construction one level up: the error of the
+skill-*predictor* against the error of the best family-blind skill-predictor. Using a
+relative-error criterion for the linking analysis makes it consistent with the criterion used for
+forecasting throughout the rest of the study, where R² never appears. Had the linking analysis been
+built to match the paper's own metric from the start, this entry would not exist.
+
+The choice was also not made after seeing which answer it gave: it was forced by noticing that
+`alarm_state` had MAE 0.036 against a 0.600 baseline while scoring R² −2.05, which is a defect
+visible without knowing what the corrected aggregate would be.
 
 **Caveat that must travel with the claim.** MAE-skill and R² answer different questions and neither
 is wrong in itself. R² is the right statistic for a family with genuine internal spread, and it is
