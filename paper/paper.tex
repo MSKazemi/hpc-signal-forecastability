@@ -37,9 +37,9 @@
 % Cites an entry in OPEN_ISSUES.md, keeping paper and register in sync.
 \newcommand{\oi}[1]{\textsc{oi-#1}}
 
-\title{Why Are HPC Monitoring Signals Hard to Forecast?\\
-       \large Intrinsic Predictability Across Eight Telemetry Families
-       of a Tier-0 Supercomputer}
+\title{Rank for Free, Calibrate with Twenty:\\
+       \large Transferring Forecast-Difficulty Estimates Across
+       Eight HPC Telemetry Families}
 
 \author{Mohsen Seyedkazemi Ardebili\\
         \small \texttt{mohsen.seyedkazemi@gmail.com}}
@@ -74,7 +74,7 @@ measure the forecast skill achieved by a tiered suite ranging from naive
 baselines to gradient-boosted trees under a strictly causal rolling-origin
 protocol.
 
-We report four findings. First, the monitoring infrastructure is itself
+We report five findings. First, the monitoring infrastructure is itself
 non-stationary: of \num{573} distinct (plugin, metric) pairs observed across the
 campaign, only \num{104} are present in every month, and those are exactly the
 out-of-band sensor set. Second, a large share of what is monitored carries no
@@ -91,14 +91,27 @@ worse than repeating the last value.
 Fourth, the measures do transfer to signal families they have never seen, but
 in \emph{ordering} far more than in \emph{level}. A model trained on every
 family except one ranks the held-out family's series correctly --- median
-within-family Spearman \(+0.50\), positive for \num{14} of \num{15} families,
-significant for \num{9}, reaching \(+0.83\) --- and beats the best family-blind
-predictor of skill in \num{13} of \num{15} families, by a median \num{19}\%
-reduction in error. Two families fall below that baseline, and only one substantively: monotone
-error counters at \(-0.85\), with thermal marginally negative at \(-0.02\).
-The substantive failure is the counters,
-which a drift forecast predicts almost exactly and which no model-free measure
-anticipates.
+within-family Spearman \(+0.52\), positive in \emph{all} \num{15} families and
+significant for \num{10} --- and beats the best family-blind
+predictor of skill in \num{13} of \num{15} families, by a median \num{21}\%
+reduction in error. Two families fall below that baseline, and only one
+substantively: monotone error counters at \(-0.68\), with thermal marginally
+negative at \(-0.01\). The substantive failure is the counters, which a drift
+forecast predicts almost exactly and which no model-free measure anticipates.
+
+Fifth, and separating the two readings of the capacity result, we estimate each
+series' information-theoretic ceiling --- entropy rate by a Lempel-Ziv
+estimator, then maximum predictability by Fano's inequality --- and compare it
+to what persistence achieves on the same alphabet. The families split cleanly.
+Error counters, system metadata, alarm states and setpoint registers carry
+\num{0.03}--\num{0.34} bits per step and persistence already achieves \num{0.99}
+or better: no model can improve them. The other nine families carry
+\num{1}--\num{3} bits per step, of which persistence leaves \num{12} to \num{31}
+percentage points of next-step accuracy unclaimed. So ``hard to forecast'' names
+two different situations, and only the first is a property of the signals.
+(The Lempel-Ziv estimator converges from above at these series lengths, so the
+ceiling is an estimate rather than a bound and reported headroom is a lower
+bound; we validate the direction against sources with known entropy rate.)
 
 Two controls establish that this is a property of the data rather than of the
 method, and a third shows why the choice of criterion decides the answer. The
@@ -107,7 +120,7 @@ an oracle given the true generating parameter, and correctly finds nothing when
 skill is permuted. Running the real protocol with arbitrary groups of matched
 size transfers easily (median \(R^2\) \(+0.35\), every group positive,
 \(p<0.001\) over \num{100} draws), so the difficulty is specific to crossing
-family boundaries. Yet the raw \(R^2\) of the real data is \(-0.19\), which is
+family boundaries. Yet the raw \(R^2\) of the real data is \(-0.17\), which is
 \emph{worse} than the \(-0.07\) of the permuted arm containing no relation at
 all --- because \(R^2\) is scored against an oracle that already knows the
 held-out family's mean skill, and its denominator collapses on families whose
@@ -138,7 +151,10 @@ monitoring system itself; (ii) a model-free predictability profile for each of
 \num{1402} series drawn from eight plugin families; (iii) a strictly causal,
 scale-free forecast benchmark over four model tiers on the same series; and
 (iv) a test of whether the first predicts the second, cross-validated by holding
-out entire signal families.
+out entire signal families; and (v) a per-family estimate of the
+information-theoretic ceiling on next-step accuracy, which separates families
+that are at their limit from families whose predictability our models fail to
+extract.
 
 The answer is a qualified yes, and the qualification took two controls and a
 change of criterion to establish. The measures transfer to families they have
@@ -582,6 +598,87 @@ of the recursion.
 \label{fig:tier}
 \end{figure}
 
+\subsection{Two regimes: signal-limited and model-limited families}
+\label{sec:ceiling}
+
+The capacity result above says the models we tried do not help. It does not say
+whether anything could. Those are different claims, and separating them needs a
+quantity no forecaster can beat.
+
+We estimate one. Each series is symbolised at its own resolution --- its
+distinct values where there are at most \num{16}, equal-frequency quantiles
+otherwise --- its entropy rate \(S\) is estimated with the Lempel-Ziv estimator
+\(S = n\log_2 n / \sum_i \Lambda_i\), where \(\Lambda_i\) is the length of the
+shortest substring at position \(i\) not seen before it, and the maximum
+predictability \(\Pi_{\max}\) follows from the limiting case of Fano's
+inequality
+\[
+S = -[\Pi\log_2\Pi + (1-\Pi)\log_2(1-\Pi)] + (1-\Pi)\log_2(N-1),
+\]
+after \citet{song2010limits}. Against it we place the accuracy persistence
+actually achieves on the \emph{same} alphabet --- persistence because
+\S\ref{sec:skill} finds it the strongest forecaster here, so the comparison
+is not against a straw man.
+
+\textbf{This is an estimate, not a bound, and we validated the direction of its
+error rather than assuming it.} On Markov chains whose entropy rate is known in
+closed form, the Lempel-Ziv estimator converges from \emph{above} at the series
+lengths available: at \(p(\text{stay})=0.99\) the true rate is \num{0.076} bits
+and the estimate at \(n=2000\) is \num{0.127}, closing only near
+\(n=16000\) --- far beyond the \(\approx\num{3000}\) samples a month of
+15-minute data provides. The ceiling is therefore \emph{under}-reported by
+\(\approx\num{0.01}\), and \num{248} of \num{1402} series (\num{18}\%) exceed
+it. That bias direction is what makes the estimate usable: reported headroom is
+a \emph{lower} bound on true headroom, so "these models leave predictability
+unclaimed" is the conservative reading, while "this family is at its limit"
+cannot be established from a small positive gap and we assert it only where the
+gap is zero or negative.
+
+\begin{table}[t]
+\centering
+\caption{Achieved next-symbol accuracy against the estimated information
+ceiling, by family. Headroom is a lower bound. Four families are at their
+limit; nine are not.}
+\label{tab:ceiling}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Regime (families) & \(S\) & ceiling & achieved & headroom \\
+\midrule
+signal-limited (4)  & 0.03--0.34 & 0.97--1.00 & 0.99--1.00 & \(\approx 0\) \\
+near-limit (4)      & 0.63--0.93 & 0.89--0.93 & 0.81--0.90 & 0.02--0.08 \\
+model-limited (9)   & 1.00--2.97 & 0.50--0.88 & 0.18--0.69 & 0.12--0.31 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The families split into two regimes (Table~\ref{tab:ceiling};
+\texttt{results/tables/ceiling\_gap.csv}). Error counters, system metadata,
+alarm states and setpoint registers carry \num{0.03}--\num{0.34} bits per step,
+and persistence already achieves \num{0.99} or better --- at or above the
+estimated ceiling. Nothing can improve them, and a benchmark that includes them
+is measuring its own sample composition, which is the same point
+\S\ref{sec:constant} makes from a different direction.
+
+The other nine are not at any limit. Power, network, electrical, thermal, fan
+flow, utilisation and humidity signals carry \num{1}--\num{3} bits per step, of
+which persistence leaves \num{12} to \num{31} percentage points of next-step
+accuracy unclaimed.
+
+\textbf{This qualifies \S\ref{sec:skill} rather than contradicting it.} Both
+hold: the model classes we tried --- boosted trees and lag-window networks,
+forecasting recursively --- do worse than persistence, \emph{and} substantial
+extractable structure demonstrably remains in the continuous physical families.
+The defensible conclusion is therefore not that these signals are
+unforecastable, but that the model classes tried are the wrong ones for them.
+That is a sharper claim than a null, and it points somewhere.
+
+One caveat bounds what the comparison licenses. The ceiling concerns
+\emph{one-step} next-symbol accuracy on a \num{16}-level alphabet; our skill
+numbers are MASE at a \emph{four-step} horizon on continuous values. Headroom
+establishes that the information is present, not that a forecaster can convert
+it into MASE.
+
 \subsection{Does the protocol work? A synthetic positive control}
 \label{sec:protocol}
 
@@ -694,7 +791,7 @@ not.
 natural question is how far the achieved skill sits from an information-theoretic
 limit. We compute one for every series: the entropy rate of the symbolised
 signal, converted through Fano's inequality into an upper bound on the fraction
-of next-bin transitions any predictor could get right. Computed on a 16-symbol alphabet, the median across
+of next-bin transitions any predictor could get right~\citep{song2010limits}. Computed on a 16-symbol alphabet, the median across
 \num{1402} series is \num{0.854}, and it separates families sharply --- network
 traffic at \num{0.575} and electrical measurements at \num{0.638} against alarm
 states and setpoint registers at \num{0.996}.
@@ -706,7 +803,12 @@ bounds next-\emph{bin} accuracy on a symbolised sequence, while skill is a
 scale-free error ratio on continuous values, and a signal that is easy to
 extrapolate but hard to bin exactly can exceed the first while doing well on the
 second. Anyone reading the number as a limit on achievable error would be
-misled.
+misled. The gap is known in the literature that introduced the measure:
+\citet{lu2013approaching}, applying it to mobility traces, note that ``the
+largest prediction accuracy that can be achieved with properly designed
+predictive algorithms is not given directly by this measure''. Our result is
+the sharper version of that caution --- in this setting the achieved skill
+routinely exceeds the bound, because the two are not measuring the same event.
 
 What it is instead is the single strongest ordinal predictor of difficulty we
 found: Spearman \(+0.69\) with achieved skill across series and \(+0.73\)
@@ -740,9 +842,20 @@ metric clusters the strongest is the gzip compression ratio at \(r=-0.42\)
 \(-0.30\). That a general-purpose compressor outranks every hand-designed
 entropy measure is worth noting on its own.
 
+Jointly the same pattern holds and is stronger. The three highest permutation
+importances in the fitted model are all information-theoretic and none is
+hand-designed for time series: the compression ratio (\num{0.110}), the
+Lempel-Ziv entropy rate (\num{0.048}), and the Fano ceiling derived from it
+(\num{0.037}). Repetition fraction, which an earlier draft of this work reported
+as the dominant predictor, falls to \num{0.019} once they are present --- its
+signal was largely theirs. Adding the three lifts every transfer statistic in
+Table~\ref{tab:transfer}: median \(R^2\) from \(+0.05\) to \(+0.14\), families
+with positive within-family ordering from \num{14} of \num{15} to \emph{all}
+\num{15}, and median MAE-skill from \num{0.19} to \num{0.21}.
+
 Jointly, the raw picture looks poor: holding out each of \num{15} families in
-turn gives a mean out-of-sample \(R^2\) of \(-0.19\), a median of \(+0.05\),
-positive for \num{9} of the \num{15}, ranging from \(+0.47\) to \(-2.39\)
+turn gives a mean out-of-sample \(R^2\) of \(-0.17\), a median of \(+0.14\),
+positive for \num{10} of the \num{15}, ranging from \(+0.42\) to \(-2.56\)
 (monotone error counters). Reported alone that number is
 misleading in three ways, and Table~\ref{tab:transfer} shows why.
 
@@ -763,22 +876,22 @@ Scoring the same folds the way this paper scores forecasts everywhere else, as
 a fractional reduction in absolute error against a baseline
 (\(1-\mathrm{MAE}_{\text{model}}/\mathrm{MAE}_{\text{baseline}}\), the same
 construction as MASE), the picture inverts: \num{13} of \num{15} families beat
-the family-blind predictor, by a median \num{19}\% reduction in error. The one
-substantive failure is monotone error counters, at \num{85}\% \emph{worse} than
+the family-blind predictor, by a median \num{21}\% reduction in error. The one
+substantive failure is monotone error counters, at \num{68}\% \emph{worse} than
 baseline. The synthetic control of \S\ref{sec:protocol} makes the point sharpest:
 the arm with skill permuted across series, containing no relation whatever,
-scores \(R^2=-0.07\) --- \emph{better} than M100's \(-0.19\) --- while its
-MAE-skill is \(+0.002\) against M100's \(+0.19\) and its within-family Spearman
-\(+0.10\) against \(+0.50\). A statistic that ranks genuine structure below
+scores \(R^2=-0.07\) --- \emph{better} than M100's \(-0.17\) --- while its
+MAE-skill is \(+0.002\) against M100's \(+0.21\) and its within-family Spearman
+\(+0.10\) against \(+0.52\). A statistic that ranks genuine structure below
 noise is not measuring the question being asked, and we report it here only
 because it is what a reader would expect to see.
 
 \emph{Ordering transfers; level does not.} Within a held-out family the model
-ranks series correctly --- median Spearman \(+0.50\), significant at
-\(p<0.05\) for \num{9} of \num{15} families and reaching \(+0.83\) --- while
+ranks series correctly --- median Spearman \(+0.52\), positive in all
+\num{15} families and significant at \(p<0.05\) for \num{10} --- while
 placing that ranking at the wrong absolute level. \(R^2\) penalises the level
-error; Spearman does not. Removing the level bias moves the mean \(R^2\) from
-\(-0.19\) to \(-0.01\) and makes \num{10} of \num{15} families positive. The
+error; Spearman does not. Removing the level bias moves the median \(R^2\) from
+\(+0.14\) to \(+0.15\) and makes \num{11} of \num{15} families positive. The
 practical reading is that the profile can say which signals in an unfamiliar
 family will be harder than which, but not how hard any of them will be.
 
@@ -806,12 +919,12 @@ already knows the held-out family's mean skill.}
  & mean & median & positive \\
 \midrule
 \multicolumn{4}{l}{\emph{against a family-blind baseline}}\\
-MAE-skill                   & \num{+0.198} & \num{+0.192} & 13/15 \\
-within-family Spearman      & \num{+0.454} & \num{+0.495} & 9/15 at \(p<0.05\) \\
+MAE-skill                   & \num{+0.218} & \num{+0.213} & 13/15 \\
+within-family Spearman      & \num{+0.450} & \num{+0.523} & 10/15 at \(p<0.05\) \\
 \midrule
 \multicolumn{4}{l}{\emph{against an oracle that knows the family's mean}}\\
-raw \(R^2\)                 & \num{-0.189} & \num{+0.053} & 9/15 \\
-level-corrected \(R^2\)     & \num{-0.011} & \num{+0.053} & 10/15 \\
+raw \(R^2\)                 & \num{-0.167} & \num{+0.141} & 10/15 \\
+level-corrected \(R^2\)     & \num{-0.012} & \num{+0.154} & 11/15 \\
 \midrule
 random-group null (\(R^2\)) & \num{+0.319} & \num{+0.329} & 15/15 \\
 \bottomrule
@@ -829,9 +942,9 @@ destroys it.}
 \toprule
 Feature set & \# & mean \(R^2\) \\
 \midrule
-without entropy measures   & 22 & \num{-0.079} \\
-full profile               & 25 & \num{-0.189} \\
-signal measures only       & 21 & \num{-0.206} \\
+without entropy measures   & 23 & \num{-0.142} \\
+full profile               & 27 & \num{-0.167} \\
+signal measures only       & 23 & \num{-0.204} \\
 instrument covariates only & 4  & \num{-14.999} \\
 \midrule
 predicting the global mean & --- & \num{-18.352} \\
@@ -841,8 +954,8 @@ predicting the global mean & --- & \num{-18.352} \\
 
 
 The result is not an artefact of instrumentation. Using the instrument covariates
-alone collapses the model (\(-15.0\) against \(-0.19\) for the full profile),
-while removing them costs almost nothing (\(-0.21\)) --- see
+alone collapses the model (\(-15.0\) against \(-0.17\) for the full profile),
+while removing them costs almost nothing (\(-0.20\)) --- see
 Table~\ref{tab:ablation}. Whatever the
 measures capture, it is not how the data was sampled --- which is the
 conditioning test \oi{1} called for.
@@ -923,9 +1036,9 @@ nothing beat repeating the last value.
 
 The other half holds, in a more specific sense than we set out to show. The
 measures transfer to an unseen family in \emph{ordering} --- median
-within-family Spearman \(+0.50\), positive for \num{14} of \num{15} families
-and significant for \num{9} --- and in \emph{level} they beat the best
-family-blind predictor in \num{13} of \num{15} families by a median \num{19}\%,
+within-family Spearman \(+0.52\), positive in \emph{all} \num{15} families
+and significant for \num{10} --- and in \emph{level} they beat the best
+family-blind predictor in \num{13} of \num{15} families by a median \num{21}\%,
 while falling well short of an oracle that knows the family's mean. Two controls
 confirm this is a property of the data and not of the method: arbitrary groups
 transfer easily (\(R^2 = +0.35\), \(p<0.001\)), and a synthetic portable law is
@@ -936,7 +1049,7 @@ forecast difficulty; it is strongest ordinally and real but partial in level.
 A methodological point travels with that result, and we think it generalises
 beyond this dataset. Reported as a raw \(R^2\), our transfer looks worse than
 the synthetic arm in which skill was permuted at random and no relation exists
-at all (\(-0.19\) against \(-0.07\)). \(R^2\)'s comparator is an oracle that
+at all (\(-0.17\) against \(-0.07\)). \(R^2\)'s comparator is an oracle that
 already knows the mean of the group being predicted, and its denominator
 degenerates on homogeneous groups --- our alarm-state family is predicted to a
 mean absolute error of \num{0.036} against a baseline of \num{0.600} and scores

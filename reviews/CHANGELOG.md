@@ -249,3 +249,33 @@ T16–T18 added; none beats **T13**, which remains the winner for the final roun
 Round 06 found one substantive item (C8), so the loop continues. Round 07 has exactly one queued
 task — obtain and cite Song et al. 2010 — which is a citation fix rather than a finding. If that is
 all round 07 produces, the stop condition is met.
+
+---
+
+## Round 07 — 2026-08-06 — FINAL
+
+**Snapshot:** `paper/versions/main-r07.tex` (16 pp. before, 18 after)
+**Review:** `reviews/round-07.md` · **Recommendation:** Accept with minor revision
+**Consolidated report:** `reviews/FINAL.md`
+
+### Applied
+- Cited the Fano construction: **Song et al. 2010** (origin, paywalled, **not read**, definition
+  only) and **Lu et al. 2013** (obtained and **read**, cited for a verified quotation that the Fano
+  bound "is not given directly by this measure"). Round 06 used the construction uncited and
+  deliberately left it so rather than cite an unobtained source; that is now resolved properly.
+- **Set the winning title: T13** — "Rank for Free, Calibrate with Twenty: Transferring
+  Forecast-Difficulty Estimates Across Eight HPC Telemetry Families".
+
+### Stop condition met
+Both skills ran against the current PDF and found **no unsupported claim, no stale number, no
+missing architecture element, no wrong paper and no wrong author name**. The only work in this round
+was the queued citation. Per the loop's early-stop rule, round 07 is the final round.
+
+### Attempted and refused
+- MDPI *Entropy* 2019 review — HTML interstitial, no PDF.
+- AAAI version of record for Borghesi et al. 2019 — **third attempt**, OJS non-PDF and CDN 403.
+  Recorded as attempted-and-unavailable; needs institutional access.
+
+### Final state
+18 pp., 14 references (6 read in full), zero undefined references, zero placeholders, 154 tests
+passing, every number traceable to a committed CSV.

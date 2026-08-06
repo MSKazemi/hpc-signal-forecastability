@@ -257,8 +257,56 @@ which is the wrong direction for an upper bound; it is set high enough (512, aga
 match length near 16) that it should not bind, but a series predictable enough to reach it would
 have its ceiling under-reported rather than over-reported.
 
-**Still to do.** Report the achieved-versus-ceiling gap per family, which is the analysis this
-machinery exists for and which the next linking run will produce.
+**The estimator is biased, and the direction is now measured rather than assumed.** Against Markov
+chains whose entropy rate is known in closed form, at the n ≈ 2,000 this data provides:
+
+| p(stay) | true rate | estimated | true ceiling | estimated ceiling |
+|---:|---:|---:|---:|---:|
+| 0.99 | 0.076 | 0.127 | 0.992 | 0.986 |
+| 0.95 | 0.290 | 0.348 | 0.962 | 0.953 |
+| 0.85 | 0.686 | 0.712 | 0.887 | 0.882 |
+
+The Lempel–Ziv estimator converges from *above*, closing only near n = 16,000, so the derived
+ceiling is an **under-estimate** and is not a bound. On M100, 248 of 1,402 series (18%) exceed it,
+concentrated exactly among the near-deterministic ones. This is what OI-7b demanded: the quantity
+is reported as an estimator with a validated bias direction, never as "the" irreducible error.
+
+The bias direction is what makes it usable anyway. Because the ceiling is under-reported, any
+headroom it shows is a **lower bound** on the true headroom — so "these models leave predictability
+unclaimed" is the conservative reading. The converse claim, that a family sits *at* its limit,
+cannot be established from a small positive gap and is asserted only where the gap is zero or
+negative by more than the measured bias (≈0.01).
+
+---
+
+**The result this machinery existed for: forecast difficulty here is two distinct phenomena.**
+Comparing achieved next-symbol accuracy (persistence, the study's strongest forecaster) against the
+estimated ceiling on the same alphabet — `results/tables/ceiling_gap.csv`:
+
+| regime | families | entropy rate | ceiling | achieved | headroom |
+|---|---|---:|---:|---:|---:|
+| **information-limited** | error_counter, system_meta, alarm_state, setpoint_config | 0.03–0.34 | 0.97–1.00 | 0.99–1.00 | ≈ 0 |
+| near-limit | storage, memory, scheduler, weather | 0.63–0.93 | 0.89–0.93 | 0.81–0.90 | 0.02–0.08 |
+| **model-limited** | humidity, gpu/cpu utilisation, fan_flow, thermal, electrical, facility_power, power, network | 1.00–2.97 | 0.50–0.88 | 0.18–0.69 | 0.12–0.31 |
+
+Four families are at their information limit: persistence already extracts essentially everything
+there is, and no model can improve them. Nine families are not: they carry 1–3 bits per step of
+genuine information, of which persistence leaves **12 to 31 percentage points of next-step accuracy
+unclaimed** — and those headroom figures are lower bounds.
+
+**This is in tension with the paper's capacity finding, productively.** §5.4 reports that more model
+capacity produced *less* skill and that nothing beat persistence at any horizon. Both can be true:
+the model classes actually tried (boosted trees and lag-window MLPs, forecasting recursively) do
+worse than persistence, while a substantial amount of extractable structure demonstrably remains in
+the continuous physical families. The correct conclusion is therefore not "these signals are
+unforecastable" but "the model classes tried are the wrong ones for these families" — which is a
+sharper claim and a concrete direction rather than a dead end.
+
+**Caveat that must travel with it.** The ceiling concerns **one-step next-symbol accuracy on a
+16-level alphabet**; the study's skill numbers are **MASE at a four-step horizon on continuous
+values**. These are different tasks, and headroom in the first does not automatically convert into
+skill in the second. What the comparison establishes is that the information is present, not that
+any particular forecaster can turn it into MASE.
 
 ---
 

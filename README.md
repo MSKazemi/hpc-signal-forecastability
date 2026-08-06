@@ -8,9 +8,9 @@ supercomputer, using the public
 >
 > The study set out to show that forecast difficulty is predictable from model-free properties of a
 > signal. Measured against a baseline a model could actually have, it transfers: **13 of 15 signal
-> families beat the family-blind predictor, by a median 19% reduction in error.** What does not
+> families beat the family-blind predictor, by a median 21% reduction in error.** What does not
 > transfer is the *level* — the measures rank series inside a family they have never seen
-> (Spearman ρ = 0.50, positive in 14 of 15 families) but cannot say where that family sits.
+> (Spearman ρ = 0.52, positive in all 15 families) but cannot say where that family sits.
 >
 > Earlier drafts of this README reported no transfer at all. That was a defect in the statistic,
 > not a finding: R²'s comparator is an oracle that already knows the held-out family's mean skill
@@ -32,14 +32,14 @@ seen the held-out family (predict the training mean):
 | | |
 |---|---:|
 | families beating the family-blind baseline | **13 of 15** |
-| median reduction in prediction error | **19%** |
-| within-family rank correlation (Spearman ρ), median | **+0.50** |
-| families with ρ > 0 | **14 of 15** |
-| the one genuine failure | `error_counter`, 85% *worse* than baseline |
+| median reduction in prediction error | **21%** |
+| within-family rank correlation (Spearman ρ), median | **+0.52** |
+| families with ρ > 0 | **15 of 15** |
+| the one genuine failure | `error_counter`, 68% *worse* than baseline |
 
 The measures reliably say *which* series inside an unseen family are the hard ones — ρ = +0.82 for
 memory, +0.83 for scheduler, +0.74 for CPU utilisation. What they cannot do is say where a new
-family sits: mean R² given the family's true level is −0.01, against −0.19 without it, so nearly
+family sits: median R² given the family's true level is +0.15, against +0.14 without it, so nearly
 the whole R² deficit is the unknown offset.
 
 **Why earlier drafts reported the opposite.** They used R², whose denominator is the variance of
@@ -48,7 +48,7 @@ knows the answer a model is trying to predict. On a family whose series all have
 denominator collapses. `alarm_state` is the clearest case: the model predicts every held-out
 series to within **MAE 0.036** against a baseline error of **0.600** — a 94% improvement — and R²
 records **−2.05**. The honest baseline was in the output all along, as `r2_baseline`, averaging
-**−18.35** against the model's −0.19. Registered as OI-15.
+**−18.35** against the model's −0.17. Registered as OI-15.
 
 **The protocol was then validated against known ground truth** (OI-13). Four synthetic arms run
 through the identical pipeline:
@@ -59,37 +59,43 @@ through the identical pipeline:
 | same, with the true generating parameter supplied | +0.233 | +0.195 | +0.576 |
 | same law, non-overlapping per-family bands | −0.096 | +0.165 | −0.050 |
 | skill permuted — no relation at all | −0.070 | **+0.002** | +0.100 |
-| **M100 (real)** | **−0.189** | **+0.192** | **+0.495** |
+| **M100 (real)** | **−0.167** | **+0.213** | **+0.523** |
 
 The measures recover **103% of the oracle ceiling**, and the no-relation arm correctly scores zero,
 so the pipeline can find a law when one exists. On the two statistics that survive a degenerate
 denominator M100 resembles the *genuine law* arm; only raw R² resembles the failures. Note that the
-no-relation arm scores −0.070 while M100 scores −0.189: on the headline statistic alone the real
+no-relation arm scores −0.070 while M100 scores −0.167: on the headline statistic alone the real
 data transfers worse than data containing no relation, which is as sharp a demonstration as the
 question admits that R² is the wrong summary here.
 
 **One family genuinely fails.** Monotone counters are forecast almost exactly by a drift model, and
-`error_counter` is 85% worse than baseline with ρ = −0.02. Adding direction measures
+`error_counter` is 68% worse than baseline with ρ = +0.03. Adding direction measures
 (`monotone_fraction` = 1.00 for that family, 68% classified as unit-root) makes it *detectable*
 without making it *predictable* — it is the one place the relation does not hold.
 
 **And the mechanism for the level failure is open.** The obvious explanation — that held-out
 families occupy feature regions no training family covers — was tested and refuted twice: across
 the real folds Spearman(extrapolation distance, R²) is only −0.111, and in the synthetic control,
-genuine band-disjointness collapses within-family ordering to ρ = −0.05 where M100 holds at +0.50.
+genuine band-disjointness collapses within-family ordering to ρ = −0.05 where M100 holds at +0.52.
 
-**2. Individual measures do correlate with skill — but the strongest one is nearly tautological.**
-Cluster-robust over 156 metric clusters:
+**2. A general-purpose compressor beats every hand-designed entropy measure.**
+Cluster-robust over 261 metric clusters, 1,082 series:
 
 | measure | r | 95% CI |
 |---|---:|---|
-| fraction of steps that repeat | **+0.40** | [0.25, 0.53] |
-| permutation entropy | −0.35 | [−0.49, −0.18] |
-| daily seasonal strength | −0.24 | [−0.43, −0.02] |
-| excess kurtosis of differences | +0.23 | [0.12, 0.31] |
+| **gzip compression ratio** | **−0.42** | [−0.52, −0.31] |
+| fraction of steps that repeat | +0.37 | [0.26, 0.49] |
+| permutation entropy | −0.33 | [−0.44, −0.22] |
+| changepoint rate | −0.30 | [−0.40, −0.20] |
+| sample entropy | −0.24 | [−0.33, −0.17] |
 
-The best predictor of "is this forecastable" is "does it hold still" — which is closer to a
-restatement than an explanation.
+Earlier drafts reported repetition fraction as the strongest predictor and concluded that "is this
+forecastable" reduces to "does it hold still" — closer to a restatement than an explanation. That is
+no longer the leading result. A generic compressor, given no domain knowledge and no hand-designed
+statistic, outranks the entire entropy family: it finds repeated motifs, periodicity and constant
+runs without being told to look for any of them. It is also, by construction, indifferent to sensor
+resolution — the series is requantised to a fixed 256 levels first — which the permutation entropy
+it displaces is not (OI-11).
 
 **3. More model capacity makes things worse, and skill goes negative fast.** Median skill
 (1 − MASE) against a **same-step** naive baseline, 331 series:
@@ -117,7 +123,34 @@ even the best naive model is negative (−0.284).
   Which baseline you scale by changes which family of models looks best — which is itself a
   finding about how this literature reports results.
 
-**4. This is not an instrumentation artefact.** Dropping the sampling and quantisation covariates
+**4. "Hard to forecast" is two different phenomena, and only one of them is about the signals.**
+Estimating each series' information-theoretic ceiling — entropy rate via Lempel–Ziv, then maximum
+predictability by Fano's inequality — and comparing it to what persistence actually achieves on the
+same alphabet splits the families cleanly (`results/tables/ceiling_gap.csv`):
+
+| regime | families | entropy rate (bits/step) | ceiling | achieved | headroom |
+|---|---|---:|---:|---:|---:|
+| **information-limited** | error counters, system metadata, alarm states, setpoints | 0.03–0.34 | 0.97–1.00 | 0.99–1.00 | ≈ 0 |
+| near-limit | storage, memory, scheduler, weather | 0.63–0.93 | 0.89–0.93 | 0.81–0.90 | 0.02–0.08 |
+| **model-limited** | power, network, electrical, thermal, fan flow, CPU/GPU utilisation, humidity | 1.00–2.97 | 0.50–0.88 | 0.18–0.69 | 0.12–0.31 |
+
+Four families are at their limit — persistence already extracts everything available, and no model
+can improve them. Nine are not: they carry one to three bits per step of real information, of which
+persistence leaves **12–31 percentage points of next-step accuracy unclaimed**.
+
+This sits in productive tension with finding 3. Both are true: the model classes actually tried do
+worse than persistence, *and* substantial extractable structure remains in the continuous physical
+families. So the conclusion is not "these signals are unforecastable" but "the model classes tried
+are the wrong ones for them."
+
+Two caveats. The ceiling is an **estimate, not a bound** — the Lempel–Ziv estimator converges from
+above at these series lengths, so it under-reports by about 0.01 and 18% of series exceed it. That
+bias makes the headroom figures *lower* bounds, so the model-limited reading is the conservative
+one. And the ceiling concerns one-step accuracy on a 16-level alphabet, whereas the study's skill is
+MASE at four steps on continuous values: headroom shows the information is present, not that a
+forecaster can convert it into MASE.
+
+**5. This is not an instrumentation artefact.** Dropping the sampling and quantisation covariates
 *improves* the linking model slightly (−0.14 vs −0.16), and using them alone collapses it (−15.0).
 Whatever the measures capture, it is not how the data was sampled — which is the conditioning test
 OI-1 called for.
@@ -195,8 +228,8 @@ feature regions, has been tested and refuted.
 ```
 
 The relation was tested by holding out whole families, so it had to generalise to unseen signal
-physics to count. It does: 13 of 15 families beat a family-blind baseline, by a median 19% error
-reduction, with within-family ordering transferring at ρ = +0.50. Because that conclusion rests on
+physics to count. It does: 13 of 15 families beat a family-blind baseline, by a median 21% error
+reduction, with within-family ordering transferring at ρ = +0.52 in every family. Because that conclusion rests on
 choosing the right statistic, the protocol itself was put through a positive and a negative control
 before the conclusion was drawn (OI-13) — the study's earlier null result came from R², whose
 comparator is an oracle no model can have (OI-15).
