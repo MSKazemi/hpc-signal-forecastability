@@ -122,6 +122,24 @@ def main() -> None:
             f"range [{cv.r2_forest.min():.3f}, {cv.r2_forest.max():.3f}], "
             f"{int((cv.r2_forest > 0).sum())}/{len(cv)} families positive"
         )
+        # The criterion R^2 cannot supply: did the measures beat the best
+        # predictor that has never seen the held-out family?
+        mae = cv.mae_skill.dropna()
+        if len(mae):
+            print("\n=== transfer against the family-blind baseline (mean absolute error) ===")
+            print(
+                f"MAE-skill: median {mae.median():+.3f}, "
+                f"{int((mae > 0).sum())}/{len(mae)} families beat the train-mean predictor"
+            )
+            print(
+                "R^2 measures against an oracle that knows the held-out family's mean; "
+                "this measures against what a model can actually know."
+            )
+            losers = cv[cv.mae_skill <= 0][["held_out_family", "mae_skill", "r2_forest"]]
+            if len(losers):
+                print("families that genuinely fail:")
+                print(losers.round(3).to_string(index=False))
+
         print("\n=== transfer decomposed: level vs ordering ===")
         print(
             f"mean R^2 given the true level: {cv.r2_level_corrected.mean():.3f} "
@@ -134,6 +152,21 @@ def main() -> None:
                 f"{int((rho > 0).sum())}/{len(rho)} folds positive, "
                 f"{int((cv.spearman_p < 0.05).sum())}/{len(cv)} significant at 0.05"
             )
+
+        # Does transfer fail because no law exists, or because the training
+        # families never covered the region the held-out family lives in?
+        usable = cv[["extrapolation_distance", "r2_forest"]].dropna()
+        if len(usable) >= 5:
+            rank = usable.corr(method="spearman").iloc[0, 1]
+            print(
+                f"\nextrapolation distance vs R^2: Spearman {rank:+.3f} over {len(usable)} folds "
+                "(negative => the families that transfer worst are the ones "
+                "no training family resembles)"
+            )
+            worst = cv.nsmallest(3, "r2_forest")[
+                ["held_out_family", "r2_forest", "extrapolation_distance"]
+            ]
+            print(worst.round(3).to_string(index=False))
 
     # 2. Which measures matter.
     importance = feature_importance(data, feature_columns=full, seed=seed)

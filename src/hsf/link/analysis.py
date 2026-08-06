@@ -29,7 +29,7 @@ from scipy import stats
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.inspection import permutation_importance
 from sklearn.linear_model import Ridge
-from sklearn.metrics import r2_score
+from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
@@ -120,6 +120,47 @@ def prepare(
     return merged
 
 
+def _extrapolation_distance(x_train: np.ndarray, x_test: np.ndarray) -> float:
+    """How far the test set sits outside the training set's feature region.
+
+    Median nearest-training-neighbour distance for the test series, divided by
+    the median nearest-neighbour distance *within* the training set. The ratio
+    is what makes the number comparable across folds: raw distances scale with
+    how many features there are and how spread out the data is, whereas the
+    ratio asks "is a test point as close to the training data as training
+    points are to each other?". One means interleaved, ten means the held-out
+    family occupies a region nothing in training resembles.
+
+    Features are standardised on the training split first, so a measure with a
+    large numeric range does not dominate the distance purely by its units.
+    """
+    if x_train.shape[0] < 2 or x_test.shape[0] < 1:
+        return float("nan")
+
+    centre = x_train.mean(axis=0)
+    scale = x_train.std(axis=0)
+    scale[scale == 0] = 1.0  # constant column contributes nothing, not infinity
+    train = (x_train - centre) / scale
+    test = (x_test - centre) / scale
+
+    def nearest(a: np.ndarray, b: np.ndarray, *, exclude_self: bool) -> np.ndarray:
+        # Chunked to keep the pairwise matrix bounded on the larger folds.
+        out = np.empty(a.shape[0])
+        for start in range(0, a.shape[0], 256):
+            block = a[start : start + 256]
+            distances = np.linalg.norm(block[:, None, :] - b[None, :, :], axis=2)
+            if exclude_self:
+                np.fill_diagonal(distances[:, start : start + block.shape[0]], np.inf)
+            out[start : start + block.shape[0]] = distances.min(axis=1)
+        return out
+
+    within = float(np.median(nearest(train, train, exclude_self=True)))
+    across = float(np.median(nearest(test, train, exclude_self=False)))
+    if not np.isfinite(within) or within <= 0:
+        return float("nan")
+    return across / within
+
+
 def leave_one_family_out(
     data: pd.DataFrame,
     *,
@@ -157,6 +198,48 @@ def leave_one_family_out(
 
     Reporting only the mean R² would collapse all three into one number and
     attribute an unavoidable failure to the predictability measures.
+
+    **Extrapolation, and why it is measured here.** A fourth column,
+    ``extrapolation_distance``, records how far the held-out family sits outside
+    the region of feature space the training families occupy: the median over
+    test series of the distance to the nearest training series, in units of the
+    training set's own typical nearest-neighbour distance. A value near 1 means
+    the held-out family is interleaved with the training data and the model is
+    interpolating; a large value means no training family looks anything like
+    it, and the model is being asked to extrapolate.
+
+    This distinguishes two very different reasons a relation can fail to
+    transfer. If a family scores badly *and* sits far outside the training
+    region, the evidence is that the training set never covered it — which is a
+    statement about sampling, not about whether a law exists. If a family scores
+    badly while sitting *inside* the training region, the law genuinely does not
+    hold there. Without this column the two are indistinguishable, and the
+    stronger conclusion would be claimed for both.
+
+    **Why R² is not the criterion, and ``mae_skill`` is.** R² is
+    ``1 - SSE/SST``, and ``SST`` is computed about the mean of the *held-out*
+    family. The implicit comparator is therefore an oracle that already knows
+    what the new family's average skill is — which is precisely the thing a
+    model predicting an unseen family cannot know. "R² < 0" means "worse than
+    that oracle", not "no better than nothing", and treating the two as the same
+    statement is what makes this analysis read as a null result.
+
+    Two consequences follow, and both are visible in the data. First, a family
+    whose series nearly all have the same skill has almost no ``SST``, so R²
+    divides by something near zero and reports catastrophe for a prediction
+    that is accurate in absolute terms. Second, the honest baseline — the best a
+    family-blind predictor can do, which is to output the training mean — is
+    already reported as ``r2_baseline`` and is far more negative than
+    ``r2_forest``, so the model in fact beats it comfortably in folds the
+    headline counts as failures.
+
+    ``mae_skill`` states that comparison directly: the fractional reduction in
+    mean absolute error against the train-mean predictor, on the same held-out
+    series. Positive means the predictability measures carried information
+    across the family boundary. It is reported alongside R² rather than instead
+    of it, because R² remains the right statistic for families with genuine
+    internal spread — but a conclusion about transfer must not rest on a
+    statistic whose denominator collapses on a third of the folds.
     """
     usable = data.dropna(subset=[target]).copy()
     matrix = usable[feature_columns].astype(float)
@@ -201,6 +284,15 @@ def leave_one_family_out(
         # true mean. The gap to r2_forest is the cost of not knowing the level.
         centred = predicted - predicted.mean() + y_test.mean()
 
+        extrapolation = _extrapolation_distance(x_train, x_test)
+
+        # The comparison R^2 cannot make: model error against the error of the
+        # best family-blind predictor, on the same series, in the target's own
+        # units. Undefined when the baseline is already exact.
+        mae_model = mean_absolute_error(y_test, predicted)
+        mae_baseline = mean_absolute_error(y_test, baseline)
+        mae_skill = 1.0 - mae_model / mae_baseline if mae_baseline > 0 else np.nan
+
         rows.append(
             {
                 "held_out_family": held_out,
@@ -209,10 +301,15 @@ def leave_one_family_out(
                 "r2_forest": r2_score(y_test, predicted),
                 "r2_ridge": r2_score(y_test, linear.predict(x_test)),
                 "r2_baseline": r2_score(y_test, baseline),
+                "mae_forest": float(mae_model),
+                "mae_baseline": float(mae_baseline),
+                "mae_skill": float(mae_skill),
+                "skill_sd_test": float(np.std(y_test)),
                 "spearman_within": float(rho),
                 "spearman_p": float(rho_p),
                 "level_bias": float(predicted.mean() - y_test.mean()),
                 "r2_level_corrected": r2_score(y_test, centred),
+                "extrapolation_distance": extrapolation,
                 "test_skill_mean": float(y_test.mean()),
                 "train_skill_mean": float(y_train.mean()),
             }

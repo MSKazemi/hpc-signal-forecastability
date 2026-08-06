@@ -90,11 +90,11 @@ worse than repeating the last value.
 Fourth, and contrary to our hypothesis, the measures transfer across signal
 families in \emph{ordering} but not in \emph{level}. A model trained on every
 family except one ranks the held-out family's series correctly --- median
-within-family Spearman \(+0.40\), significant for \num{10} of \num{15}
-families and reaching \(+0.80\) --- while assigning the wrong absolute skill,
-which is what drives the raw \(R^2\) to a mean of \(-0.16\). Correcting the
-level bias moves it to a median of \(+0.11\), positive for \num{11} of
-\num{15}. A random-group null settles what this means: the same protocol run
+within-family Spearman \(+0.50\), significant for \num{9} of \num{15}
+families and reaching \(+0.83\) --- while assigning the wrong absolute skill,
+which is what drives the raw \(R^2\) to a mean of \(-0.19\). Correcting the
+level bias moves the mean to \(-0.01\) and makes \num{10} of \num{15} families
+positive. A random-group null settles what this means: the same protocol run
 with arbitrary groups of matched size transfers easily (median \(R^2\)
 \(+0.33\) across draws, every group positive, \(p<0.001\) against the observed
 value over \num{100} draws), so the difficulty is specific to crossing family boundaries
@@ -285,11 +285,14 @@ cannot be a relabelling of the result it is meant to explain.
 \subsection{Model-free predictability measures}
 
 Each series receives a profile of \num{21} measures grouped by the mechanism it
-probes: entropy and complexity (permutation entropy, spectral entropy, sample
-entropy, Lempel--Ziv complexity, gzip compression ratio); periodicity
-(dominant-period strength, daily seasonal strength); memory (autocorrelation at
-lag one and one day, detrended fluctuation exponent); stationarity (block-mean
-drift ratio, variance ratio, ADF and KPSS \(p\)-values, changepoint rate); and
+probes: entropy and complexity (permutation entropy~\citep{bandt2002permutation}, spectral entropy, sample
+entropy~\citep{richman2000physiological}, Lempel--Ziv complexity, gzip
+compression ratio); periodicity (dominant-period strength, daily seasonal
+strength); memory (autocorrelation at lag one and one day, detrended fluctuation
+exponent~\citep{peng1994mosaic}); stationarity (block-mean drift ratio, variance
+ratio, Augmented Dickey--Fuller~\citep{dickey1979distribution} and
+KPSS~\citep{kwiatkowski1992testing} \(p\)-values, and a mean-shift changepoint
+rate obtained by binary segmentation~\citep{truong2020selective}); and
 shape (jump fraction, repetition fraction, monotone fraction, reset rate,
 excess kurtosis of differences). Four instrument covariates --- quantisation
 step, interval jitter, gap fraction and coverage --- are carried separately so
@@ -301,7 +304,7 @@ fraction and reset rate target counter-like signals, which a drift forecaster
 handles almost exactly and which the original profile could not distinguish from
 genuinely hard signals. They help but do not repair the case: error counters
 remain the worst-transferring family at a level-corrected \(R^2\) of
-\(-0.62\), against \(-1.88\) raw. Each
+\(-1.05\), against \(-2.39\) raw. Each
 returns \texttt{nan} rather than raising on degenerate input, because constant
 series are the common case here rather than an edge case
 (\S\ref{sec:constant}). Implementations are validated against series whose
@@ -563,23 +566,24 @@ of the recursion.
 \label{sec:linking}
 
 Individually the measures correlate with skill. Cluster-robust over \num{261}
-metric clusters, repetition fraction reaches \(r=+0.37\) (95\% CI
-\([0.26,0.49]\)) and permutation entropy \(-0.33\) (95\% CI
-\([-0.44,-0.22]\)).
+metric clusters the strongest is the gzip compression ratio at \(r=-0.42\)
+(95\% CI \([-0.52,-0.31]\)), ahead of repetition fraction \(+0.37\)
+(\([0.26,0.49]\)), permutation entropy \(-0.33\) and changepoint rate
+\(-0.30\). That a general-purpose compressor outranks every hand-designed
+entropy measure is worth noting on its own.
 
 Jointly, the raw picture looks poor: holding out each of \num{15} families in
-turn gives a mean out-of-sample \(R^2\) of \(-0.16\), a median of \(+0.06\),
-positive for \num{9} of the \num{15}, ranging from \(+0.25\) (scheduler state)
-to \(-1.88\) (monotone error counters). Reported alone that number is
+turn gives a mean out-of-sample \(R^2\) of \(-0.19\), a median of \(+0.05\),
+positive for \num{9} of the \num{15}, ranging from \(+0.47\) to \(-2.39\)
+(monotone error counters). Reported alone that number is
 misleading in two ways, and Table~\ref{tab:transfer} shows why.
 
 \emph{Ordering transfers; level does not.} Within a held-out family the model
-ranks series correctly --- median Spearman \(+0.40\), significant at
-\(p<0.05\) for \num{10} of \num{15} families and reaching \(+0.80\) for
-memory, \(+0.72\) for CPU utilisation and \(+0.68\) for setpoint registers ---
-while placing that ranking at the wrong absolute level. \(R^2\) penalises the
-level error; Spearman does not. Removing the level bias raises the median
-\(R^2\) to \(+0.11\) and makes \num{11} of \num{15} families positive. The
+ranks series correctly --- median Spearman \(+0.50\), significant at
+\(p<0.05\) for \num{9} of \num{15} families and reaching \(+0.83\) --- while
+placing that ranking at the wrong absolute level. \(R^2\) penalises the level
+error; Spearman does not. Removing the level bias moves the mean \(R^2\) from
+\(-0.19\) to \(-0.01\) and makes \num{10} of \num{15} families positive. The
 practical reading is that the profile can say which signals in an unfamiliar
 family will be harder than which, but not how hard any of them will be.
 
@@ -587,7 +591,7 @@ family will be harder than which, but not how hard any of them will be.
 protocol with \emph{random} groups of matched size gives a median \(R^2\) of
 \(+0.33\) across draws (2.5--97.5\% range \([0.22, 0.38]\), mean \(+0.32\))
 with every group positive,
-against \(-0.16\) and \num{60}\% for the real families; over \num{100} draws
+against \(-0.19\) and \num{60}\% for the real families; over \num{100} draws
 no random grouping was as poor as the observed one (\(p<0.001\)). Arbitrary
 grouping therefore transfers easily, so the protocol is capable of transfer and
 the family axis carries real structure. Without this control the raw \(R^2\)
@@ -604,18 +608,41 @@ families; the absolute level does not, which is what the raw \(R^2\) measures.}
 \toprule
  & mean & median & positive \\
 \midrule
-raw \(R^2\)                 & \num{-0.163} & \num{+0.061} & 9/15 \\
-level-corrected \(R^2\)     & \num{+0.009} & \num{+0.105} & 11/15 \\
-within-family Spearman     & ---          & \num{+0.397} & 10/15 at \(p<0.05\) \\
+raw \(R^2\)                 & \num{-0.189} & \num{+0.053} & 9/15 \\
+level-corrected \(R^2\)     & \num{-0.011} & \num{+0.053} & 10/15 \\
+within-family Spearman     & ---          & \num{+0.495} & 9/15 at \(p<0.05\) \\
 \midrule
 random-group null (\(R^2\)) & \num{+0.319} & \num{+0.329} & 15/15 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The result is not an artefact of instrumentation. Removing the sampling and
-quantisation covariates slightly \emph{improves} the model (\(-0.14\) against
-\(-0.16\)), and using them alone collapses it (\(-15.0\)). Whatever the
+\begin{table}[t]
+\centering
+\caption{Ablations. Removing the entropy family \emph{improves} transfer;
+removing the instrument covariates costs almost nothing; using them alone
+destroys it.}
+\label{tab:ablation}
+\small
+\begin{tabular}{lrr}
+\toprule
+Feature set & \# & mean \(R^2\) \\
+\midrule
+without entropy measures   & 22 & \num{-0.079} \\
+full profile               & 25 & \num{-0.189} \\
+signal measures only       & 21 & \num{-0.206} \\
+instrument covariates only & 4  & \num{-14.999} \\
+\midrule
+predicting the global mean & --- & \num{-18.352} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+The result is not an artefact of instrumentation. Using the instrument covariates
+alone collapses the model (\(-15.0\) against \(-0.19\) for the full profile),
+while removing them costs almost nothing (\(-0.21\)) --- see
+Table~\ref{tab:ablation}. Whatever the
 measures capture, it is not how the data was sampled --- which is the
 conditioning test \oi{1} called for.
 
